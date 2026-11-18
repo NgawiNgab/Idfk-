@@ -1,0 +1,7 @@
+{
+  "type": "preload-native",
+  "name": "Ore Outlines HUD Test",
+  "version": "0.1.0",
+  "description": "Synthetic launcher HUD test. No Minecraft block reader or camera integration.",
+  "entry": "libore_outline.so"
+}
