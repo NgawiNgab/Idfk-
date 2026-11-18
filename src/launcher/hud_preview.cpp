@@ -1,3 +1,4 @@
+#include "ore_outline/build_id.hpp"
 #include "ore_outline/core.hpp"
 
 #include <pl/Mod.hpp>
@@ -18,6 +19,7 @@ using namespace ore_outline;
 namespace menu = pl::modmenu;
 
 constexpr std::string_view kModuleId = "idfk.ore-outline-hud-test";
+constexpr std::string_view kBuildIdModuleId = "idfk.minecraft-build-id";
 constexpr ScanScope kFixture{{1, 0}, {-2, 0, 0}, {1, 0, 0}};
 struct Sample {
     Category category;
@@ -32,6 +34,59 @@ constexpr std::array kSamples{
 constexpr std::uint32_t argb(Color c) noexcept {
     return (std::uint32_t{c.a} << 24) | (std::uint32_t{c.r} << 16) |
            (std::uint32_t{c.g} << 8) | std::uint32_t{c.b};
+}
+
+bool valid_surface(menu::HudSurfaceSize size) noexcept {
+    return std::isfinite(size.width) && std::isfinite(size.height) &&
+           size.width > 0 && size.height > 0;
+}
+
+void show_loaded_build_id() {
+    const auto surface = menu::getHudSurfaceSize();
+    if (!valid_surface(surface)) {
+        menu::submitDrawCommands(kBuildIdModuleId, {});
+        return;
+    }
+
+    // One snapshot of the current link map, only when the user enables this check.
+    const auto result = build_id::query_loaded_game();
+    const auto [width, height] = surface;
+    const float textSize = std::min({26.0f, width * 0.029f, height * 0.045f});
+    const float lineHeight = 1.5f * textSize;
+    std::vector<menu::DrawCommand> commands;
+    const auto append = [&](std::string_view text) {
+        menu::DrawCommand line{};
+        line.type = menu::DrawCommandType::Text;
+        line.x = 0.05f * width;
+        line.y = 0.16f * height + static_cast<float>(commands.size()) * lineHeight;
+        line.w = 0.9f * width;
+        line.h = lineHeight;
+        line.size = textSize;
+        line.color = 0xffffffffu;
+        line.text = text;
+        commands.push_back(std::move(line));
+    };
+    switch (result.status) {
+        case build_id::Status::NotLoaded:
+            append("Minecraft library not loaded");
+            break;
+        case build_id::Status::MultipleModules:
+            append("Multiple Minecraft libraries");
+            break;
+        case build_id::Status::Unavailable:
+            append("Build ID unavailable");
+            break;
+        case build_id::Status::Found: {
+            const auto hex = result.id.hex();
+            append(hex == build_id::kDriveBuildId ? "Build ID: MATCH" : "Build ID: DIFFERENT");
+            const std::string_view digits(hex);
+            for (std::size_t i = 0; i < digits.size(); i += 20) {
+                append(digits.substr(i, 20));
+            }
+            break;
+        }
+    }
+    menu::submitDrawCommands(kBuildIdModuleId, commands);
 }
 
 class HudPreview {
@@ -78,8 +133,26 @@ public:
                 return;
             }
         };
-        registered_ = menu::registerModule(info);
-        return registered_;
+        menu::ModuleInfo identity{};
+        identity.moduleId = kBuildIdModuleId;
+        identity.displayName = "Minecraft Build ID Check";
+        identity.description = "Read the loaded library fingerprint. No world reads or game hooks.";
+        identity.modId = context.id();
+        identity.defaultEnabled = false;
+        identity.hideInHudEditor = true;
+        identity.onToggle = [this, generation](std::string_view id, bool enabled) {
+            std::lock_guard lock(mutex_);
+            if (!registered_ || id != kBuildIdModuleId || generation != generation_) return;
+            if (enabled) show_loaded_build_id();
+            else menu::submitDrawCommands(kBuildIdModuleId, {});
+        };
+        if (!menu::registerModule(info)) return false;
+        if (!menu::registerModule(identity)) {
+            menu::unregisterModule(kModuleId);
+            return false;
+        }
+        registered_ = true;
+        return true;
     }
 
     bool disable() {
@@ -89,6 +162,8 @@ public:
             settings_ = {};
             menu::submitDrawCommands(kModuleId, {});
             menu::unregisterModule(kModuleId);
+            menu::submitDrawCommands(kBuildIdModuleId, {});
+            menu::unregisterModule(kBuildIdModuleId);
         }
         return true;
     }
@@ -112,11 +187,12 @@ private:
             menu::submitDrawCommands(kModuleId, {});
             return;
         }
-        const auto [width, height] = menu::getHudSurfaceSize();
-        if (!std::isfinite(width) || !std::isfinite(height) || width <= 0 || height <= 0) {
+        const auto surface = menu::getHudSurfaceSize();
+        if (!valid_surface(surface)) {
             menu::submitDrawCommands(kModuleId, {});
             return;
         }
+        const auto [width, height] = surface;
         const double side = 0.9 * std::min(width, height);
         const CameraFrame camera{
             kFixture.world,

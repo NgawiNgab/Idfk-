@@ -11,4 +11,6 @@ Reference: [`NgawiNgab/BedrockTools` at `c03d3ae`](https://github.com/NgawiNgab/
 
 ## What the CI result means
 
-A green [build](../../.github/workflows/build.yml) verifies the host unit tests, Android compilation/linking, lifecycle export, ELF dependencies, 16 KiB alignment and archive layout. It does **not** establish that the installed launcher exports this API, that its display matches the synthetic fixtures, or that Minecraft can be queried safely. See the [offline smoke checklist](../../README.md#offline-hud-smoke-test) before trying to connect a block reader.
+[PR #1's ARM64 build](https://github.com/NgawiNgab/Idfk-/actions/runs/44342019000/job/134934288576) passed for `22f4736`: host tests, Android compilation/linking, lifecycle export, ELF dependencies, 16 KiB alignment, and archive layout.
+
+**User-reported device observation:** Both synthetic boxes appeared in LeviLauncher. The user confirmed the [smoke sequence](../../README.md#offline-hud-smoke-test): the diamond filter removed cyan alone, then the module toggle cleared the remaining gold box. Resize, package unload, and the gold filter independently are unverified. This is not evidence of a loaded Minecraft build ID, safe block reads, or game-to-HUD projection.
