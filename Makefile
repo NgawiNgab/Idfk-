@@ -11,8 +11,10 @@ FIXTURE_MATCH := $(BUILD_DIR)/fixtures/build-id-match/libminecraftpe.so
 FIXTURE_OTHER := $(BUILD_DIR)/fixtures/build-id-other/libminecraftpe.so
 FIXTURE_NO_ID := $(BUILD_DIR)/fixtures/build-id-absent/libminecraftpe.so
 FIXTURES := $(FIXTURE_MATCH) $(FIXTURE_OTHER) $(FIXTURE_NO_ID)
+WORLD_PROBE := $(BUILD_DIR)/world-probe/ore-outline-one-block-probe.mcpack
+WORLD_PROBE_FILES := probes/one-block/manifest.json probes/one-block/scripts/main.js probes/one-block/scripts/probe.js
 
-.PHONY: test
+.PHONY: test test-world-probe world-probe
 test: $(HOST_TEST) $(BUILD_ID_TEST) $(FIXTURES)
 	"$(HOST_TEST)"
 	"$(BUILD_ID_TEST)" "$(abspath $(FIXTURE_MATCH))" "$(abspath $(FIXTURE_OTHER))" "$(abspath $(FIXTURE_NO_ID))"
@@ -32,3 +34,11 @@ $(FIXTURE_NO_ID): NOTE_ID := none
 $(FIXTURES): tests/build_id_fixture.cpp Makefile
 	mkdir -p "$(@D)"
 	$(CXX) -fPIC -shared -Wl,--build-id=$(NOTE_ID) "$<" -o "$@"
+
+test-world-probe:
+	node --experimental-default-type=module --test tests/world_probe_test.mjs
+
+world-probe: $(WORLD_PROBE)
+
+$(WORLD_PROBE): $(WORLD_PROBE_FILES) scripts/package_world_probe.py
+	python3 scripts/package_world_probe.py "$@"

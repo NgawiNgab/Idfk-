@@ -33,6 +33,12 @@ Import the `.levipack` in LeviLauncher and enable the package. In an offline tes
 
 The switch takes one snapshot when enabled. It enumerates already loaded objects and examines bounded GNU Build ID notes inside readable mappings. No root, ADB, local file hash, cache reads, Zaphkiel, or log dump is needed. A match corroborates only the loaded object's reported build fingerprint; it does not show full-file equality or enable a block reader or camera binding.
 
+The [user-reported loaded Build ID](docs/research/intake.md#loaded-build-id) matched the Drive sample. No game bindings are enabled.
+
+## One-block offline test
+
+The [one-block world probe](docs/research/one-block-world-probe.md#run-on-the-device) is a separate `.mcpack` test fixture. It uses the supported Bedrock Script API to check diamond ore, stone, and air at the same position, with a distant guard-only control. It does not add native world reads, scanning, or camera access to the LeviPack. CI uploads it as **one-block-world-probe**.
+
 ## Host-only outline core
 
 On Linux, run `make test` with GNU Make, a C++20 compiler, and GNU binutils. The tests use synthetic values and tiny shared-library fixtures; no game library, launcher, or Android toolchain is required.
@@ -43,4 +49,4 @@ On Linux, run `make test` with GNU Make, a C++20 compiler, and GNU binutils. The
 
 ## Evidence and remaining work
 
-[XRAY-008](docs/research/xray-008-evidence.md) matched all eight requested windows (340 decoded instructions) to the separate Drive sample. The lookup can mutate the region's chunk cache and uses branch-specific status checks. Camera position and matrix-copy paths are corroborated, but the active pass and viewport are not. The [port plan](docs/research/xray-port-1.26.62.md) records what still gates real ore outlines: verify the loaded game module, verify a non-generating block read with a valid lifetime, and obtain coherent main-pass camera data. No further static batch is pending.
+[XRAY-008](docs/research/xray-008-evidence.md) matched all eight requested windows (340 decoded instructions) to the separate Drive sample. The lookup can mutate the region's chunk cache and uses branch-specific status checks. Camera position and matrix-copy paths are corroborated, but the active pass and viewport are not. The [port plan](docs/research/xray-port-1.26.62.md) records what still gates real ore outlines: verify a non-generating block read with a valid lifetime and obtain coherent main-pass camera data. No further static batch is pending.
