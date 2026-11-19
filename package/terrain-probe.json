@@ -1,0 +1,7 @@
+{
+  "type": "preload-native",
+  "name": "Passive Terrain Probe",
+  "version": "0.2.0",
+  "description": "Experimental offline-only discovery of diamond samples during ordinary terrain builds. Default off. Frozen report only; no ore outlines or behavior pack.",
+  "entry": "libore_outline_terrain.so"
+}

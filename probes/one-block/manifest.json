@@ -1,0 +1,27 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Ore Outlines One-Block Probe",
+    "description": "Manual read-only world check for one known position. Activate only in a disposable offline test world.",
+    "uuid": "80746fd7-643b-442b-bab5-8b43f65f6da4",
+    "version": [0, 1, 0],
+    "min_engine_version": [1, 21, 120]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "8be87dd3-bff7-4f0d-be98-f0ea3eddcc16",
+      "version": [0, 1, 0]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "entry": "scripts/main.js",
+      "uuid": "74916827-c242-45f9-ad4f-45d239082c94",
+      "version": [0, 1, 0]
+    }
+  ],
+  "dependencies": [
+    { "module_name": "@minecraft/server", "version": "2.3.0" }
+  ]
+}
