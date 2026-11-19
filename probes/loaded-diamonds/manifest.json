@@ -1,0 +1,27 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Loaded Diamond Scan",
+    "description": "Read-only scan near one player in a local offline Overworld. Start with /scriptevent idfk:loaded_diamonds start.",
+    "uuid": "5601058f-9281-43f4-96af-adffc9acb303",
+    "version": [0, 1, 0],
+    "min_engine_version": [1, 21, 120]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "53754b44-503c-4299-8154-1eae5a90092a",
+      "version": [0, 1, 0]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "entry": "scripts/main.js",
+      "uuid": "14fdc89b-13e4-42cf-9b83-ab52c056de71",
+      "version": [0, 1, 0]
+    }
+  ],
+  "dependencies": [
+    { "module_name": "@minecraft/server", "version": "2.3.0" }
+  ]
+}

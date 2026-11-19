@@ -19,8 +19,10 @@ FIXTURE_NO_ID := $(BUILD_DIR)/fixtures/build-id-absent/libminecraftpe.so
 FIXTURES := $(FIXTURE_MATCH) $(FIXTURE_OTHER) $(FIXTURE_NO_ID)
 WORLD_PROBE := $(BUILD_DIR)/world-probe/ore-outline-one-block-probe.mcpack
 WORLD_PROBE_FILES := probes/one-block/manifest.json probes/one-block/scripts/main.js probes/one-block/scripts/probe.js
+DIAMOND_SCAN := $(BUILD_DIR)/world-probe/loaded-diamond-scan.mcpack
+DIAMOND_SCAN_FILES := $(addprefix probes/loaded-diamonds/,manifest.json scripts/main.js scripts/scan.js scripts/session.js)
 
-.PHONY: test test-world-probe world-probe
+.PHONY: test test-world-probe world-probe loaded-diamond-scan
 test: $(HOST_TEST) $(SCAN_TEST) $(BUILD_ID_TEST) $(FIXTURES) $(CAPTURE_TEST) $(PASSIVE_TEST) $(SLOT_TEST)
 	"$(HOST_TEST)"
 	"$(SCAN_TEST)"
@@ -62,9 +64,14 @@ $(FIXTURES): tests/build_id_fixture.cpp Makefile
 	$(CXX) $(HOST_FLAGS) -fPIC -shared -Wl,-z,relro,-z,now,--build-id=$(NOTE_ID) "$<" -o "$@"
 
 test-world-probe:
-	node --experimental-default-type=module --test tests/world_probe_test.mjs
+	node --experimental-default-type=module --test tests/world_probe_test.mjs tests/loaded_diamond_scan_test.mjs
 
 world-probe: $(WORLD_PROBE)
 
+loaded-diamond-scan: $(DIAMOND_SCAN)
+
 $(WORLD_PROBE): $(WORLD_PROBE_FILES) scripts/package_world_probe.py
 	python3 scripts/package_world_probe.py "$@"
+
+$(DIAMOND_SCAN): $(DIAMOND_SCAN_FILES) scripts/package_world_probe.py
+	python3 scripts/package_world_probe.py "$@" --probe loaded-diamonds

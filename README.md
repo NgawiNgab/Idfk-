@@ -1,6 +1,6 @@
 # Ore outlines for LeviLauncher
 
-Target: **Minecraft Bedrock 1.26.62** in an offline world. The main LeviPack is a **synthetic HUD test** and **loaded Build ID check**, not working ore outlines. A separate, default-off [Passive Terrain Probe](#passive-terrain-probe) reports diamond samples from normal terrain builds. Neither package changes terrain, adds camera/caves controls or FullBright, or forces rebuilds.
+Target: **Minecraft Bedrock 1.26.62** in an offline world. The main LeviPack is a **synthetic HUD test** and **loaded Build ID check**, not working ore outlines. A separate [Passive Terrain Probe](#passive-terrain-probe) reports diamond samples from normal terrain builds. The [Loaded Diamond Scan](#loaded-diamond-scan) behavior pack tests continuous discovery in nearby, already-loaded terrain without using the renderer. None of the packages changes terrain or forces rebuilds.
 
 ## Build the LeviPack
 
@@ -39,9 +39,15 @@ The [user-reported loaded Build ID](docs/research/intake.md#loaded-build-id) mat
 
 **Try 0.2.0 on-device:** Use the separate **passive-terrain-probe-arm64** artifact from the [PR check](https://github.com/NgawiNgab/Idfk-/pull/1) and follow the [live discovery runbook](docs/research/live-terrain-discovery.md#run-on-the-device). Replace the old probe. In a disposable offline world, tap **Start discovery**, travel into fresh terrain, then **Freeze and show report**. The probe reports diamond samples at coordinates you did not enter, with sampled column/section counts. It forwards the builder's existing reads unchanged. This is a frozen report, not a live ore map or outline overlay.
 
-The [original 0.1.0 device run](docs/research/passive-terrain.md#device-result) already saw both the exposed and stone-enclosed diamond markers; no repeat is needed. The [renderer lifecycle trace](docs/research/render-section-lifecycle.md) and 5 → 22 → 31 → 5 column host replay model current adoption and removal, but those events aren't wired to Minecraft. The 0.2.0 report is still awaiting a phone run.
+The [0.2.0 phone screenshot](docs/research/live-terrain-discovery.md#device-result) showed 328 sampled columns, 878 sampled sections and diamond keys in 133 sections, with partial worker contention. The [original 0.1.0 device run](docs/research/passive-terrain.md#device-result) saw both the exposed and stone-enclosed markers. Neither needs repeating. The [renderer lifecycle trace](docs/research/render-section-lifecycle.md) and host replay model adoption and removal, but those events aren't wired to Minecraft.
 
 To include the diagnostic in a local ARM64 build, set `BUILD_TERRAIN_DIAGNOSTIC=1` when running `scripts/build-levipack.sh`. This also produces `build/android-arm64/passive-terrain-probe.levipack`.
+
+## Loaded Diamond Scan
+
+**Try discovery while staying still.** Import the **loaded-diamond-scan** build artifact's `.mcpack` through LeviLauncher's Content Management, not the Mod Manager. In a disposable offline Overworld with cheats on, activate **Loaded Diamond Scan**, let the terrain settle, then enter `/scriptevent idfk:loaded_diamonds start`. The pack sweeps a small area around the player on script ticks, shows sampled diamonds in the action bar, and repeats without needing a new terrain build. Use `status` in place of `start` for a coverage report, or `stop` to stop. See the [stationary test runbook](docs/research/loaded-diamond-scan.md#run-on-the-device).
+
+This is a report-only behavior pack using the world Script API, not a client-side outline or a new native reader. It targets the current chunk and its eight neighbors, up to 32 Y levels, rather than every chunk in render distance.
 
 ## One-block offline test
 

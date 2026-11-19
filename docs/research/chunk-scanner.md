@@ -1,6 +1,6 @@
 # Native chunk scan scheduler
 
-**Status:** The C++ scheduler works with a fixture reader and compiles as part of the ARM64 module target. No live adapter invokes it in the LeviPack. The HUD still shows synthetic geometry only. The [passing one-block device probe](one-block-world-probe.md#device-result) remains a reference, not a data source for this feature.
+**Status:** The C++ scheduler works with a fixture reader and compiles as part of the ARM64 module target. No live adapter invokes it in the LeviPack. The HUD still shows synthetic geometry only. The [passing one-block device probe](one-block-world-probe.md#device-result) and the separate [Loaded Diamond Scan trial](loaded-diamond-scan.md) use the supported Script API; neither feeds or verifies the native scheduler.
 
 ## Scan contract
 

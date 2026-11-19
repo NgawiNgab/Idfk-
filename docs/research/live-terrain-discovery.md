@@ -1,6 +1,6 @@
 # Live passive discovery — Bedrock 1.26.62 ARM64
 
-**Ready for an offline device trial, not a live ore inventory.** Passive Terrain Probe **0.2.0** replaces the [two-point test](passive-terrain.md#device-result) with discovery: no target coordinates are configured. It reports examples of diamond and deepslate diamond keys returned by ordinary terrain builds. The phone result is not yet known.
+**Passed on device as a frozen report, not a live ore inventory.** Passive Terrain Probe **0.2.0** replaces the [two-point test](passive-terrain.md#device-result) with discovery: no target coordinates are configured. It reports examples of diamond and deepslate diamond keys returned by ordinary terrain builds. For discovery without traveling into fresh terrain, try the separate [Loaded Diamond Scan](loaded-diamond-scan.md).
 
 ## Run on the device
 
@@ -27,7 +27,13 @@ Partial warning or hitching: __
 
 - A verified example at a coordinate **never supplied to the probe** is live discovery evidence. Examples in distinct chunk columns show it was not limited to the original section. More sampled columns on a longer or higher-distance pass are evidence of more ordinary visits, not a measurement of all resident chunks.
 - `Frozen: no builder visits` means no qualifying calls were seen in the window. `Diamond keys in 0 sections` means no positive keys were retained. Neither result means there is no ore. `Partial` means the counts are lower bounds among sampled visits. Even without it, they are not an exhaustive scan.
-- These are historical positives. A frozen example can remain in the report after you move away or replace the block. Do not interpret that as a stale-result detection pass. Real-time retention/removal, adoption, valid empty sections and projection are still gated by the [lifecycle work](render-section-lifecycle.md#next-validation-gate).
+- These are historical positives. A frozen example can remain in the report after you move away or replace the block. Do not interpret that as a stale-result detection pass. Native retention/removal, adoption, valid empty sections and projection are still gated by the [lifecycle work](render-section-lifecycle.md#next-validation-gate).
+
+## Device result
+
+**PASS, user-reported**, for the [0.2.0 ARM64 artifact](https://github.com/NgawiNgab/Idfk-/actions/runs/44446898996/artifacts/14493477499). The screenshot showed `Frozen: historical visits`, **328 sampled columns / 878 sampled sections**, **diamond keys in 133 sections**, and `Partial: worker contention`. It listed four deepslate diamond coordinates in four different chunk columns. One example was `(32, -32, 117)`; the screenshot at player position `(32, -32, 116)` showed a nearby exposed diamond vein. The user reported the probe worked, but that it required new terrain to discover the ores. Render distance and frame cost were not reported.
+
+Contention means some visits were dropped, so the counts aren't an inventory. This confirms unannounced historical discovery in multiple columns, not stationary discovery, current membership, edit tracking, or projection. No further passive discovery test is needed before trying the [stationary scan](loaded-diamond-scan.md).
 
 ## What changed in the probe
 

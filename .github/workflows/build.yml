@@ -43,10 +43,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Test and package the one-block behavior pack
-        run: make test-world-probe world-probe
+      - name: Test and package both behavior packs
+        run: make test-world-probe world-probe loaded-diamond-scan
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: one-block-world-probe
           path: build/world-probe/ore-outline-one-block-probe.mcpack
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: loaded-diamond-scan
+          path: build/world-probe/loaded-diamond-scan.mcpack
           if-no-files-found: error
