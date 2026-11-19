@@ -14,7 +14,7 @@ if ! grep -Eq '^Pkg\.Revision[[:space:]]*=[[:space:]]*28\.2\.13676358[[:space:]]
 fi
 ndk=$(cd -- "$ndk" && pwd)
 diagnostic=OFF
-targets=(ore_outline)
+targets=(ore_outline ore_outline_esp_trial)
 if [[ ${BUILD_TERRAIN_DIAGNOSTIC:-0} == 1 ]]; then
     diagnostic=ON
     targets+=(ore_outline_terrain)
@@ -29,6 +29,10 @@ cmake --build "$build_dir" --target "${targets[@]}" --parallel "${BUILD_JOBS:-2}
 python3 "$root/scripts/package_levipack.py" \
     --library "$build_dir/mod/libore_outline.so" \
     --output "$build_dir/ore-outline-hud-test.levipack"
+python3 "$root/scripts/package_levipack.py" \
+    --manifest "$root/package/block-esp-hud-trial.json" \
+    --library "$build_dir/mod/libore_outline_esp_trial.so" \
+    --output "$build_dir/block-esp-hud-trial.levipack"
 if [[ "$diagnostic" == ON ]]; then
     python3 "$root/scripts/package_levipack.py" \
         --manifest "$root/package/terrain-probe.json" \

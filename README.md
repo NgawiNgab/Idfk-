@@ -1,10 +1,10 @@
 # Ore outlines for LeviLauncher
 
-Target: **Minecraft Bedrock 1.26.62** in an offline world. The main LeviPack is a **synthetic HUD test** and **loaded Build ID check**, not working ore outlines. A separate [Passive Terrain Probe](#passive-terrain-probe) reports diamond samples from normal terrain builds. The [Loaded Diamond Scan](#loaded-diamond-scan) behavior pack searches nearby, already-loaded terrain and now has a cyan tracer for first-person testing. None of the packages changes terrain or forces rebuilds.
+Target: **Minecraft Bedrock 1.26.62 ARM64** in an offline world. The native [Block ESP & Chams HUD Trial](#block-esp--chams-hud-trial) tests multiple tracers, solid silhouettes and exact filters on simulated blocks. It does **not** detect real blocks. The [Loaded Diamond Scan](#loaded-diamond-scan) behavior pack is the one that finds real diamonds and draws a single tracer. None of the packages changes terrain or forces rebuilds.
 
 ## Build the LeviPack
 
-On the pull request, open the **Build ARM64 HUD test** check. After it passes, download the **ore-outline-hud-test-arm64** artifact, extract the outer ZIP, and use `ore-outline-hud-test.levipack`. The workflow is also manually runnable after it is on the default branch.
+On [PR #1](https://github.com/NgawiNgab/Idfk-/pull/1), open the **Build ARM64 HUD test** check. Download the **block-esp-hud-trial-arm64** artifact and extract the outer ZIP to get `block-esp-hud-trial.levipack`. The older **ore-outline-hud-test-arm64** artifact is separate and contains the Build ID check. The workflow is manually runnable after it is on the default branch.
 
 To build locally on Linux, use CMake 3.22+, Ninja, Git, Python 3, GNU `readelf`, and Android NDK **r28c**:
 
@@ -12,7 +12,16 @@ To build locally on Linux, use CMake 3.22+, Ninja, Git, Python 3, GNU `readelf`,
 bash scripts/build-levipack.sh /path/to/android-ndk-r28c
 ```
 
-Output: `build/android-arm64/ore-outline-hud-test.levipack`. The build fetches the pinned Preloader SDK for linking. The package contains only the root manifest and `libore_outline.so`; it uses the launcher's own `libpreloader.so` and `libc++_shared.so`. No Drive files, Minecraft APK/library, or installed game are needed to build. See [how BedrockTools builds and reads the world](docs/research/bedrocktools-integration.md).
+Outputs: `build/android-arm64/block-esp-hud-trial.levipack` and `build/android-arm64/ore-outline-hud-test.levipack`. The build fetches the pinned Preloader SDK for linking. Each package contains only a root manifest and its own `.so`; the launcher supplies `libpreloader.so` and `libc++_shared.so`. No Drive files, Minecraft APK/library, or installed game are needed to build. See [how BedrockTools builds and reads the world](docs/research/bedrocktools-integration.md).
+
+## Block ESP & Chams HUD Trial
+
+1. In LeviLauncher's **Mod Manager**, import and enable `block-esp-hud-trial.levipack`. Disable the behavior-pack tracer and older HUD tests so you can tell the overlays apart. Use a disposable local world. This LeviPack needs no `.mcpack`, per-world activation or cheats.
+2. In the Mod Menu, turn on **Block ESP & Chams (HUD Trial)**. Turn on **ESP Lines** for three cyan lines to simulated ore locations. Turn on **Chams** for solid silhouettes; turn off **ESP Lines** to see just the fills. The module and both effects start off. With both effects off or the module off, its whole batch clears.
+3. Set **Block IDs** to `minecraft:ancient_debris` for one amber sample, or `minecraft:diamond_ore, minecraft:ancient_debris, example:glowing_ore` to check multiple exact IDs. `example:glowing_ore` is a fixture, not a registered Minecraft block. To restore the demo, use `minecraft:diamond_ore, minecraft:deepslate_diamond_ore`.
+4. After a resize, toggle the module off and back on to refresh the fixture layout. Turn it off after testing. The overlay says **HUD trial - simulated blocks**; targets are not anchored to the world and won't respond to mining.
+
+The list accepts up to 16 distinct `namespace:name` types of up to 96 bytes each. Spaces around commas are ignored and duplicate IDs collapse. Empty input matches nothing. Invalid input clears the geometry instead of keeping the old filter. Names are exact: no wildcards, runtime IDs or state predicates. A future native reader can only discover types (vanilla or custom) whose names it can read from currently available block data in the loaded scan window. The trial does not query the game registry or scan chunks.
 
 ## Offline HUD smoke test
 
@@ -47,7 +56,11 @@ To include the diagnostic in a local ARM64 build, set `BUILD_TERRAIN_DIAGNOSTIC=
 
 The [coordinate-only scan worked on-device](docs/research/loaded-diamond-scan.md#device-result). **0.2.0 replaces the changing action-bar XYZ with one dotted cyan tracer.** Import the **loaded-diamond-scan** artifact's `.mcpack` through LeviLauncher's Content Management, not the Mod Manager. Activate the updated behavior pack in a disposable offline Overworld with Cheats on, then use `/scriptevent idfk:loaded_diamonds start` and look around in first person. Use `status` for diagnostics or `stop` to clear the line. See the [tracer runbook](docs/research/diamond-tracer.md#try-it-on-the-phone).
 
-The pack scans the current chunk and its eight neighbors, up to 32 Y levels. It does not force a terrain build or require new terrain. The tracer uses stable game-side world primitives, not a native LeviPack reader, HUD overlay, or ore outline. Device display and performance still need checking.
+The pack scans the current chunk and its eight neighbors, up to 32 Y levels. It does not force a terrain build or require new terrain. [On the phone](docs/research/diamond-tracer.md#device-result), the cyan line showed through stone, followed the player's view, and disappeared when the target was mined. This is a Script API result; frame cost and world transitions weren't checked.
+
+## Standalone native tracer plan
+
+The [ARM64 LeviPack plan](docs/research/native-diamond-tracer.md) still needs two native adapters: an existing-only world read on update, and a coherent camera and viewport from the main game frame. After the HUD trial, test projection on a known block with the `.mcpack` disabled, check the reader independently, then test automatic stationary discovery and mining cleanup. The HUD trial has neither binding.
 
 ## One-block offline test
 

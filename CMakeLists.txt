@@ -43,6 +43,12 @@ add_levi_module(ore_outline
     src/ore_outline/core.cpp
 )
 
+add_levi_module(ore_outline_esp_trial
+    src/launcher/block_esp_trial.cpp
+    src/ore_outline/block_esp.cpp
+    src/ore_outline/core.cpp
+)
+
 option(ORE_OUTLINE_TERRAIN_DIAGNOSTIC "Build the separate, opt-in passive terrain probe" OFF)
 if(ORE_OUTLINE_TERRAIN_DIAGNOSTIC)
     add_levi_module(ore_outline_terrain

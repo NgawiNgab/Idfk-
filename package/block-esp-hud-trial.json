@@ -1,0 +1,7 @@
+{
+  "type": "preload-native",
+  "name": "Block ESP & Chams HUD Trial",
+  "version": "0.1.0",
+  "description": "Native ARM64 HUD trial for Bedrock 1.26.62. Default-off ESP Lines, Chams, and exact Block IDs on simulated targets. No live camera or world scanning.",
+  "entry": "libore_outline_esp_trial.so"
+}

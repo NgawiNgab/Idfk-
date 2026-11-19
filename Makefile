@@ -2,6 +2,7 @@ BUILD_DIR ?= build
 CXXFLAGS ?= -O2 -g
 HOST_FLAGS := -std=c++20 -Wall -Wextra -Wpedantic -Iinclude
 HOST_TEST := $(BUILD_DIR)/ore-outline-core-test
+ESP_TEST := $(BUILD_DIR)/ore-outline-block-esp-test
 SCAN_TEST := $(BUILD_DIR)/ore-outline-chunk-scan-test
 BUILD_ID_TEST := $(BUILD_DIR)/ore-outline-build-id-test
 CAPTURE_TEST := $(BUILD_DIR)/ore-outline-terrain-capture-test
@@ -23,8 +24,9 @@ DIAMOND_SCAN := $(BUILD_DIR)/world-probe/loaded-diamond-scan.mcpack
 DIAMOND_SCAN_FILES := $(addprefix probes/loaded-diamonds/,manifest.json scripts/main.js scripts/scan.js scripts/session.js scripts/tracer.js)
 
 .PHONY: test test-world-probe world-probe loaded-diamond-scan
-test: $(HOST_TEST) $(SCAN_TEST) $(BUILD_ID_TEST) $(FIXTURES) $(CAPTURE_TEST) $(PASSIVE_TEST) $(SLOT_TEST)
+test: $(HOST_TEST) $(ESP_TEST) $(SCAN_TEST) $(BUILD_ID_TEST) $(FIXTURES) $(CAPTURE_TEST) $(PASSIVE_TEST) $(SLOT_TEST)
 	"$(HOST_TEST)"
+	"$(ESP_TEST)"
 	"$(SCAN_TEST)"
 	"$(BUILD_ID_TEST)" "$(abspath $(FIXTURE_MATCH))" "$(abspath $(FIXTURE_OTHER))" "$(abspath $(FIXTURE_NO_ID))"
 	"$(CAPTURE_TEST)"
@@ -34,6 +36,10 @@ test: $(HOST_TEST) $(SCAN_TEST) $(BUILD_ID_TEST) $(FIXTURES) $(CAPTURE_TEST) $(P
 $(HOST_TEST): $(CORE) $(CORE_TEST) include/ore_outline/core.hpp Makefile
 	mkdir -p "$(@D)"
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(HOST_FLAGS) $(CORE) $(CORE_TEST) $(LDFLAGS) $(LDLIBS) -o "$@"
+
+$(ESP_TEST): $(CORE) src/ore_outline/block_esp.cpp tests/block_esp_test.cpp include/ore_outline/core.hpp include/ore_outline/block_esp.hpp Makefile
+	mkdir -p "$(@D)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(HOST_FLAGS) $(filter %.cpp,$^) $(LDFLAGS) $(LDLIBS) -o "$@"
 
 $(SCAN_TEST): $(CORE) $(SCAN) $(SCAN_TEST_SRC) include/ore_outline/core.hpp include/ore_outline/chunk_scan.hpp Makefile
 	mkdir -p "$(@D)"

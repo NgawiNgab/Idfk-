@@ -12,6 +12,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 ENTRY = "libore_outline.so"
 TERRAIN_ENTRY = "libore_outline_terrain.so"
+ESP_TRIAL_ENTRY = "libore_outline_esp_trial.so"
 MANIFEST = Path(__file__).resolve().parents[1] / "package" / "manifest.json"
 
 
@@ -63,7 +64,7 @@ def write_package(library: Path, output: Path, manifest_path: Path = MANIFEST) -
     if not isinstance(spec, dict):
         raise ValueError("Manifest must be a JSON object")
     entry = spec.get("entry")
-    if spec.get("type") != "preload-native" or entry not in (ENTRY, TERRAIN_ENTRY):
+    if spec.get("type") != "preload-native" or entry not in (ENTRY, TERRAIN_ENTRY, ESP_TRIAL_ENTRY):
         raise ValueError("Manifest must describe an allowed root preload-native entry")
     validate_library(library, entry)
 
