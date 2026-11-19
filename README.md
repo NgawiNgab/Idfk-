@@ -1,6 +1,6 @@
 # Ore outlines for LeviLauncher
 
-Target: **Minecraft Bedrock 1.26.62** in an offline world. The main LeviPack is a **synthetic HUD test** and **loaded Build ID check**, not working ore outlines. A separate [Passive Terrain Probe](#passive-terrain-probe) reports diamond samples from normal terrain builds. The [Loaded Diamond Scan](#loaded-diamond-scan) behavior pack tests continuous discovery in nearby, already-loaded terrain without using the renderer. None of the packages changes terrain or forces rebuilds.
+Target: **Minecraft Bedrock 1.26.62** in an offline world. The main LeviPack is a **synthetic HUD test** and **loaded Build ID check**, not working ore outlines. A separate [Passive Terrain Probe](#passive-terrain-probe) reports diamond samples from normal terrain builds. The [Loaded Diamond Scan](#loaded-diamond-scan) behavior pack searches nearby, already-loaded terrain and now has a cyan tracer for first-person testing. None of the packages changes terrain or forces rebuilds.
 
 ## Build the LeviPack
 
@@ -45,9 +45,9 @@ To include the diagnostic in a local ARM64 build, set `BUILD_TERRAIN_DIAGNOSTIC=
 
 ## Loaded Diamond Scan
 
-**Try discovery while staying still.** Import the **loaded-diamond-scan** build artifact's `.mcpack` through LeviLauncher's Content Management, not the Mod Manager. In a disposable offline Overworld with cheats on, activate **Loaded Diamond Scan**, let the terrain settle, then enter `/scriptevent idfk:loaded_diamonds start`. The pack sweeps a small area around the player on script ticks, shows sampled diamonds in the action bar, and repeats without needing a new terrain build. Use `status` in place of `start` for a coverage report, or `stop` to stop. See the [stationary test runbook](docs/research/loaded-diamond-scan.md#run-on-the-device).
+The [coordinate-only scan worked on-device](docs/research/loaded-diamond-scan.md#device-result). **0.2.0 replaces the changing action-bar XYZ with one dotted cyan tracer.** Import the **loaded-diamond-scan** artifact's `.mcpack` through LeviLauncher's Content Management, not the Mod Manager. Activate the updated behavior pack in a disposable offline Overworld with Cheats on, then use `/scriptevent idfk:loaded_diamonds start` and look around in first person. Use `status` for diagnostics or `stop` to clear the line. See the [tracer runbook](docs/research/diamond-tracer.md#try-it-on-the-phone).
 
-This is a report-only behavior pack using the world Script API, not a client-side outline or a new native reader. It targets the current chunk and its eight neighbors, up to 32 Y levels, rather than every chunk in render distance.
+The pack scans the current chunk and its eight neighbors, up to 32 Y levels. It does not force a terrain build or require new terrain. The tracer uses stable game-side world primitives, not a native LeviPack reader, HUD overlay, or ore outline. Device display and performance still need checking.
 
 ## One-block offline test
 

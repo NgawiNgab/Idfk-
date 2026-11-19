@@ -44,12 +44,27 @@ function makeWindow(anchor, focus) {
         }
     }
     slices.sort((a, b) => a.priority - b.priority);
-    return { slices, minY, maxY, cursor: 0, sweeps: 0 };
+    return {
+        slices, minY, maxY, cursor: 0, sweeps: 0,
+        minX: Math.max(-XZ_LIMIT, anchor.x - CHUNK), maxX: Math.min(XZ_LIMIT - 1, anchor.x + 2 * CHUNK - 1),
+        minZ: Math.max(-XZ_LIMIT, anchor.z - CHUNK), maxZ: Math.min(XZ_LIMIT - 1, anchor.z + 2 * CHUNK - 1),
+    };
 }
 
 function loaded(dimension, from) {
     try {
         return dimension.isChunkLoaded({ ...from }) === true;
+    } catch {
+        return false;
+    }
+}
+
+// Same guarded point lookup as the original one-block probe. Never retain the block.
+export function isDiamondAt(dimension, position) {
+    if (!loaded(dimension, position)) return false;
+    try {
+        const block = dimension.getBlock({ ...position });
+        return block?.isValid === true && TYPES.includes(block.typeId);
     } catch {
         return false;
     }
@@ -105,6 +120,14 @@ export class LoadedDiamondScan {
             if (!keep.has(sample)) this.#samples.delete(sample);
         }
         return true;
+    }
+
+    // Value-only test for a held tracer target, even if it is no longer a
+    // nearest example. The window has already been set by step or report.
+    contains({ x, y, z }) {
+        const w = this.#window;
+        return !!w && [x, y, z].every(Number.isInteger) &&
+            x >= w.minX && x <= w.maxX && y >= w.minY && y <= w.maxY && z >= w.minZ && z <= w.maxZ;
     }
 
     // Called at most once per script tick. No retries or catch-up.

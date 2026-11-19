@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1] / "probes"
 COMMON = ("manifest.json", "scripts/main.js")
 PACKS = {
     "one-block": (*COMMON, "scripts/probe.js"),
-    "loaded-diamonds": (*COMMON, "scripts/scan.js", "scripts/session.js"),
+    "loaded-diamonds": (*COMMON, "scripts/scan.js", "scripts/session.js", "scripts/tracer.js"),
 }
 
 

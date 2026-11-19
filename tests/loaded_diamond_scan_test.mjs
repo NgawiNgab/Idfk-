@@ -17,6 +17,7 @@ function terrain() {
     const blocks = new Map();
     const denied = new Set();
     const queried = [];
+    const pointReads = [];
     const gates = [];
     const dimension = {
         id: "minecraft:overworld",
@@ -33,9 +34,13 @@ function terrain() {
             }
             return { getBlockLocationIterator: () => hits };
         },
+        getBlock(position) {
+            pointReads.push({ position, precedingGate: gates.at(-1) });
+            return { isValid: true, typeId: blocks.get(key(position))?.type ?? "minecraft:air" };
+        },
     };
     return {
-        dimension, queried, gates, denied,
+        dimension, queried, pointReads, gates, denied,
         put(position, type) { blocks.set(key(position), { position, type }); },
     };
 }
@@ -209,13 +214,17 @@ test("retains one nearest sampled example per column and caps inspection of dens
     assert.equal(dense.matchColumns, 1);
 });
 
-function sessionFixture() {
+function sessionFixture({ hasRenderer = true } = {}) {
     const f = terrain();
     const hud = [];
     const chat = [];
+    const shapes = new Set();
+    const added = [];
     const player = {
         id: "offline-player", typeId: "minecraft:player", isValid: true,
         dimension: f.dimension, location: { ...focus },
+        getHeadLocation() { return { ...this.location, y: this.location.y + 1.62 }; },
+        getViewDirection() { return { x: 0, y: -1, z: 0 }; },
         onScreenDisplay: { setActionBar: (line) => hud.push(line) },
         sendMessage: (line) => chat.push(line),
     };
@@ -227,9 +236,20 @@ function sessionFixture() {
         runInterval(fn, interval) { assert.equal(interval, 1); callbacks.set(++lastId, fn); return lastId; },
         clearRun(id) { callbacks.delete(id); },
     };
-    const controls = createSessionControls({ getAllPlayers: () => players }, system, makeVolume);
+    const world = {
+        getAllPlayers: () => players,
+        primitiveShapesManager: hasRenderer ? {
+            addText(shape) { shapes.add(shape); added.push(shape); },
+        } : undefined,
+    };
+    const makeText = (location, glyph) => ({
+        location, glyph,
+        setLocation(next) { this.location = next; },
+        remove() { shapes.delete(this); },
+    });
+    const controls = createSessionControls(world, system, makeVolume, makeText);
     return {
-        ...f, player, players, hud, chat, callbacks, controls,
+        ...f, player, players, hud, chat, callbacks, controls, shapes, added,
         command(message, extra = {}) {
             controls.command({ id: EVENT_ID, message, sourceType: "Entity", sourceEntity: player, ...extra });
         },
@@ -245,7 +265,7 @@ function sessionFixture() {
     };
 }
 
-test("explicit start/stop, live HUD, status without volume reads and at most one query per tick", () => {
+test("explicit start/stop, live tracer without HUD text, and at most one volume query per tick", () => {
     const f = sessionFixture();
     f.put(west, diamond);
     f.put(east, deepslateDiamond);
@@ -259,21 +279,76 @@ test("explicit start/stop, live HUD, status without volume reads and at most one
     const [late] = f.callbacks.values();
     f.advance(80, true);
     assert.equal(f.queried.length, 80);
-    assert.match(f.hud.at(-1), /Diamond: -1, -33, 8 \| 2 chunks/);
+    assert.equal(f.shapes.size, 12);
+    assert.equal(f.added.length, 12);
+    assert.deepEqual(f.hud, []);
+    const pointCount = f.pointReads.length;
+    assert.ok(pointCount > 0 && pointCount <= 2 * Math.ceil(80 / 6));
+    for (const { position, precedingGate } of f.pointReads) assert.deepEqual(precedingGate, { position, loaded: true });
     f.command("status");
     assert.equal(f.queried.length, 80);
-    assert.match(f.chat.at(-3), /72\/72 slices sampled in 9 loaded chunks/);
-    assert.match(f.chat.at(-2), /Samples in 2 chunks: -1, -33, 8 \| 0, -33, 9/);
+    assert.equal(f.pointReads.length, pointCount);
+    assert.match(f.chat.at(-4), /72\/72 slices sampled in 9 loaded chunks/);
+    assert.match(f.chat.at(-3), /Samples in 2 chunks: -1, -33, 8 \| 0, -33, 9/);
+    assert.match(f.chat.at(-1), /Tracer: locked on -1, -33, 8/);
     f.command("stop");
-    assert.equal(f.hud.at(-1), "");
+    assert.equal(f.shapes.size, 0);
     assert.equal(f.callbacks.size, 0);
     f.command("start");
     late();
     const [newCallback] = f.callbacks.values();
     newCallback(); // Rearming during an already-scanned tick does not double the budget.
     assert.equal(f.queried.length, 80);
+    assert.equal(f.shapes.size, 0);
     f.advance(1);
     assert.equal(f.queried.length, 81);
+    assert.equal(f.shapes.size, 12); // A fresh sample may be available on the first new tick.
+});
+
+test("a mined target retargets before its slab is swept again and a far move clears immediately", () => {
+    const f = sessionFixture();
+    f.put(west, diamond);
+    f.put(east, deepslateDiamond);
+    f.command("start");
+    f.advance(80);
+    const marker = [...f.shapes].find((shape) => shape.glyph === "+");
+    assert.equal(marker.location.x, west.x + 0.5);
+    f.put(west, "minecraft:stone");
+    f.advance(6);
+    assert.equal(marker.location.x, east.x + 0.5);
+    assert.equal(f.added.length, 12);
+    f.player.location.x = 48;
+    f.advance(1);
+    assert.equal(f.shapes.size, 0);
+    assert.equal(f.callbacks.size, 1);
+});
+
+test("disconnect and dimension changes remove an active tracer", () => {
+    for (const leave of [
+        (f) => f.controls.playerLeave({ playerId: f.player.id }),
+        (f) => f.controls.dimensionChange({ player: f.player }),
+    ]) {
+        const f = sessionFixture();
+        f.put(west, diamond);
+        f.command("start");
+        f.advance(72);
+        assert.equal(f.shapes.size, 12);
+        leave(f);
+        assert.equal(f.shapes.size, 0);
+        assert.equal(f.callbacks.size, 0);
+    }
+});
+
+test("a drawing failure reports once and leaves the scan available via status", () => {
+    const f = sessionFixture({ hasRenderer: false });
+    f.put(west, diamond);
+    f.command("start");
+    f.advance(80);
+    assert.equal(f.shapes.size, 0);
+    assert.equal(f.chat.filter((line) => line.includes("Could not draw")).length, 1);
+    f.command("status");
+    assert.match(f.chat.at(-1), /Tracer: unavailable/);
+    assert.match(f.chat.at(-4), /72\/72 slices sampled/);
 });
 
 test("non-player commands, another player, dimension change and leave do not run the scanner", () => {
