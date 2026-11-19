@@ -56,21 +56,15 @@ std::optional<std::uint64_t> copy_key(const void* block) noexcept {
     const auto original = original_lookup.load(std::memory_order_acquire);
     const auto caller = reinterpret_cast<std::uintptr_t>(
         __builtin_extract_return_addr(__builtin_return_address(0)));
-    const auto window = caller == original - layout::kLookup + layout::kBuilderReturn ? samples.token() : 0;
+    const auto window = caller == original - layout::kLookup + layout::kBuilderReturn ? samples.visit() : 0;
 
     // This is the game's existing request, not an additional lookup. All other
-    // call sites are straight pass-through, including temporaries/other worlds.
+    // call sites are straight pass-through. Caller scope is not a world filter.
     const auto* result = reinterpret_cast<Lookup>(original)(source, position);
-    if (window) {
-        if (position) {
-            BlockPos xyz;
-            std::memcpy(&xyz, position, sizeof(xyz));
-            if (xyz == capture::kExposed || xyz == capture::kEnclosed) {
-                samples.record(window, xyz, copy_key(result));
-                return result;
-            }
-        }
-        samples.record(window);
+    if (window && position) {
+        BlockPos xyz;
+        std::memcpy(&xyz, position, sizeof(xyz));
+        samples.record(window, xyz, copy_key(result));
     }
     return result;
 }
@@ -101,15 +95,10 @@ std::string_view swap_status(SlotSwap status) noexcept {
     return "Probe not attached";
 }
 
-std::string_view marker(capture::Match match) noexcept {
-    switch (match) {
-        case capture::Match::NoVisit: return "not visited";
-        case capture::Match::UnknownKey: return "unknown block key";
-        case capture::Match::AirKeyOrFallback: return "air key / fallback";
-        case capture::Match::OtherKey: return "other block key";
-        case capture::Match::DiamondKey: return "diamond marker";
-    }
-    return "unknown";
+std::string format_example(capture::Hit hit) {
+    const auto [x, y, z] = hit.position;
+    const auto* type = hit.match == capture::Match::DeepslateDiamond ? "Deepslate diamond" : "Diamond";
+    return std::string(type) + " at " + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z);
 }
 
 class TerrainProbe {
@@ -122,13 +111,13 @@ public:
         const auto generation = ++generation_;
         menu::ModuleInfo info{};
         info.moduleId = kModule;
-        info.displayName = "Passive Terrain Probe";
-        info.description = "Diagnostic for a disposable offline world. Shows a report, not ore outlines.";
+        info.displayName = "Passive Terrain Discovery";
+        info.description = "Single offline world only. Shows frozen diamond samples, not live ore outlines.";
         info.modId = context.id();
         info.defaultEnabled = false;
         info.hideInHudEditor = true;
         info.configs = {
-            {"arm", "Start capture", menu::ConfigType::Button, "", "", "", ""},
+            {"arm", "Start discovery", menu::ConfigType::Button, "", "", "", ""},
             {"freeze", "Freeze and show report", menu::ConfigType::Button, "", "", "", ""},
         };
         info.onToggle = [this, generation](std::string_view id, bool on) {
@@ -170,7 +159,7 @@ private:
     bool registered_ = false, visible_ = false, restart_required_ = false;
     void* game_pin_ = nullptr; // RTLD_NOLOAD reference deliberately never closed.
     std::uintptr_t slot_ = 0;
-    std::string_view status_ = "Off: press Start capture to attach";
+    std::string_view status_ = "Off: press Start discovery to attach";
     std::optional<capture::Report> report_;
 
     bool pin_game(std::uintptr_t load_bias) noexcept {
@@ -216,8 +205,12 @@ private:
             return;
         }
         slot_ = address;
-        samples.arm();
-        status_ = "Capturing ordinary terrain builds";
+        if (!samples.arm()) {
+            if (detach()) status_ = "Capture window limit; exit Minecraft";
+            restart_required_ = true;
+            return;
+        }
+        status_ = "Discovering: walk into new terrain";
     }
 
     bool detach() noexcept {
@@ -233,15 +226,15 @@ private:
     }
 
     void clear() noexcept {
-        if (detach()) status_ = "Off: press Start capture to attach";
+        if (detach()) status_ = "Off: press Start discovery to attach";
         report_.reset();
     }
 
-    void freeze() noexcept {
+    void freeze() {
         if (!slot_) return;
         if (detach()) {
             report_ = samples.report();
-            status_ = report_->builder_seen ? "Frozen: builder visits observed" : "Frozen: no builder visits observed";
+            status_ = report_->builder_seen ? "Frozen: historical visits" : "Frozen: no builder visits";
         }
     }
 
@@ -254,9 +247,9 @@ private:
         }
         const float size = std::min({24.0f, surface.width * 0.023f, surface.height * 0.04f});
         const float spacing = 1.5f * size;
-        std::array<menu::DrawCommand, 3> commands{};
+        std::array<menu::DrawCommand, 4 + capture::kMaxExamples> commands{};
         std::size_t count = 0;
-        const auto append = [&](std::string_view title, std::string_view detail = {}) {
+        const auto append = [&](std::string_view text) {
             auto& line = commands[count++];
             line.type = menu::DrawCommandType::Text;
             line.x = 0.025f * surface.width;
@@ -265,13 +258,17 @@ private:
             line.h = spacing;
             line.size = size;
             line.color = 0xffffffffu;
-            line.text = title;
-            line.text += detail;
+            line.text = text;
         };
         append(status_);
         if (report_) {
-            append("Exposed 20, 100, -12: ", marker(report_->exposed));
-            append("Enclosed 28, 100, -4: ", marker(report_->enclosed));
+            append("Sampled: " + std::to_string(report_->columns) + " columns / " +
+                   std::to_string(report_->sections) + " sections");
+            append("Diamond keys in " + std::to_string(report_->matched_sections) + " sections");
+            if (report_->limited && report_->contention) append("Partial: table limit and worker contention");
+            else if (report_->limited) append("Partial: table limit");
+            else if (report_->contention) append("Partial: worker contention");
+            for (std::size_t i = 0; i < report_->example_count; ++i) append(format_example(report_->examples[i]));
         }
         menu::submitDrawCommands(kModule, std::span(commands).first(count));
     }

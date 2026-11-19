@@ -7,16 +7,6 @@
 
 namespace ore_outline {
 
-// Logical 16x16x16 section coordinates, not an engine/ABI type.
-struct SectionPos {
-    std::int32_t x, y, z;
-    auto operator<=>(const SectionPos&) const = default;
-};
-
-[[nodiscard]] constexpr SectionPos section_containing(BlockPos position) noexcept {
-    return {chunk_coordinate(position.x), chunk_coordinate(position.y), chunk_coordinate(position.z)};
-}
-
 struct ReadySection {
     SectionPos position;
     // Nonzero content stamp; change on reload or block changes, including hidden blocks.

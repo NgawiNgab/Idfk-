@@ -1,10 +1,10 @@
 # Passive terrain probe — 1.26.62 ARM64
 
-**Status:** Separate experimental LeviPack, default off. Static trace and host fixture coverage, **no device result yet**. This is a coverage test, not working ore outlines. Use a disposable offline world, with other native mods and the one-block behavior pack off. No game reinstall is needed.
+**Status:** This is the record of the original two-point **0.1.0** trial. The [user-reported result](#device-result) saw both diamond markers in an ordinary build window. No repeat is needed. For the current probe, see the [0.2.0 live discovery runbook](live-terrain-discovery.md#run-on-the-device).
 
 ## Run on the device
 
-1. On [PR #1](https://github.com/NgawiNgab/Idfk-/pull/1), download **passive-terrain-probe-arm64** from the successful **Build ARM64 HUD test** run that includes this diagnostic. Unzip the artifact and import `passive-terrain-probe.levipack` in LeviLauncher. Exit Minecraft before changing packages. Enable **Passive Terrain Probe** in the launcher and disable **Ore Outlines HUD Test** and other native mods for this run. There are no cyan/gold boxes in the probe.
+1. For historical reproduction only, use the [0.1.0 artifact](https://github.com/NgawiNgab/Idfk-/actions/runs/44439886567/artifacts/14490826654). Unzip it and import `passive-terrain-probe.levipack` in LeviLauncher after exiting Minecraft. Enable **Passive Terrain Probe** in the launcher and disable **Ore Outlines HUD Test** and other native mods for this run. There are no cyan/gold boxes in the probe.
 2. In a new Creative superflat Overworld with cheats enabled and multiplayer off, set up the two controls. Do this **before** starting capture. The second diamond is enclosed by stone on all six sides. Both are in the same 16×16×16 section; the nonzero chunk origin also tests world rather than chunk-local XYZ.
 
    ```text
@@ -27,6 +27,18 @@
 | `builder visits observed` without a matching exposed control | Some builder calls ran; the target section and binding have not been positively validated. An `air key / fallback` cannot establish loaded air or missing ore. `other block key` and `unknown block key` also do not prove culling. |
 | `no builder visits observed` | No qualifying call reached the probe in this window. An already meshed area, a different build path, or a scope mismatch can give this result. Not evidence against buried ore coverage. |
 
+## Device result
+
+**User-reported — first-pass coverage passed.** Using [the ARM64 probe artifact](https://github.com/NgawiNgab/Idfk-/actions/runs/44439886567/artifacts/14490826654) from `0aaf92c`, the user returned:
+
+```text
+Frozen: builder visits observed
+Exposed 20, 100, -12: diamond marker
+Enclosed 28, 100, -4: diamond marker
+```
+
+This is live evidence that the selected callback supplied both controls in the covered trial, using their world coordinates rather than section-local coordinates. Both controls were in the **same** section; it does not establish membership or coverage across different sections or build paths. A frozen report is not a post-detach or performance test. The original lookup and layer behavior were not changed by the observer. No uncovered repeat is needed.
+
 ## Static evidence and scope
 
 This is the independently reassembled [Drive sample](intake.md#binary-intake), not Apollon's binary. All six part hashes, ZIP CRC, ELF SHA-256, and GNU Build ID were rechecked. A previous user-reported loaded Build ID matched; the runtime gate checks it again and compares exact instruction windows and a relocated pointer. The full game ELF and reference archive are not shipped.
@@ -44,6 +56,14 @@ This is the independently reassembled [Drive sample](intake.md#binary-intake), n
 - The slot is shared by `BlockSource` instances, so there is a forwarding cost while attached even for unrelated caller addresses. The original function receives the original two arguments exactly once; its result is returned unchanged. Only exact return PC `0xa9c5544` is eligible for capture. Game and observer code remain mapped through process exit even after detach, so a worker holding the old pointer still has a valid destination. See the [Android linker flags](https://android.googlesource.com/platform/bionic/+/refs/heads/main/android-changes-for-ndk-developers.md) and the package's `DF_1_NODELETE` check; no hot library unload is promised. Freeze, disable and unload disarm before attempting restoration; they do not wait on or release engine objects.
 - The hot path does not allocate, log, submit HUD draws, edit the world, issue extra lookups, or retain pointers. Two coordinate-specific evidence flags and a builder-seen bit are latched in one atomic word for each window. Late observations with a prior token are discarded. Test points are only report filters, **not** requests to the engine. There is no runtime world/dimension token here; use one offline Overworld for each trial. No render cost or lifecycle acceptance on the installed launcher has been measured yet.
 
+## How discovery scales
+
+**Plan for current results; exercised by the [host replay](render-section-lifecycle.md#host-replay), not implemented by either device probe.** The [0.2.0 discovery trial](live-terrain-discovery.md) reports historical positives only. Subscribe to the work the terrain builder already does, rather than request every block inside a cube or assume a fixed number of chunks. While enabled, classify each block supplied by the scoped callback and put matching values into a bounded per-build buffer. From the supplied world XYZ, group results by `(world epoch, dimension, floor(x/16), floor(y/16), floor(z/16))`; one chunk column can contain multiple vertical sections. Filter categories at draw time so changing a filter does not require a rebuild.
+
+A read during a build is not proof that the result is currently rendered. Verify the client renderer's section publication/retirement path. Publish only data from a current, accepted build for a render-ready section. A known complete rebuild replaces that section's old result, including replacing it with an empty result. A clipped, canceled, dropped, or superseded build cannot prove that missing ores are gone. Invalidate stale results when the section changes; remove retired or out-of-range sections, and clear everything on disable or a world/dimension switch. Do not retain pointers to engine objects.
+
+Use that changing ready set, whether it contains 5, 22, or more chunk columns. Limit retained results and work submitted per frame; prefer the nearest valid sections under load. An already meshed section may not emit callbacks when toggled on. Until its next ordinary build, treat it as unobserved, not empty. Do not force a rebuild; if immediate coverage is needed later, it requires a separate verified, existing-only reader for those sections.
+
 ## Next gate
 
-Run the controlled device test above before expanding the capture. A pass would justify testing unannounced ores across nearby chunks, scoping publications to the real world/dimension and build lifetimes, and measuring the overhead. It would not establish removal after replacement/unload, coverage of already meshed chunks, or coherent camera projection. If passive coverage is insufficient, the [guarded scheduler](chunk-scanner.md) remains a fallback with an unresolved live render-ready feed and an independently guarded read. Never substitute the one-block Script API outcome for native evidence.
+The [0.2.0 live trial](live-terrain-discovery.md) can test discovery during movement without claiming current coverage. The [static lifecycle trace](render-section-lifecycle.md#which-view-owns-the-grid) distinguishes the mutable player grid from retained face-sort and draw data. Other views share the adoption helper; a non-null chunk lookup can [still yield fallback air](render-section-lifecycle.md#build-identity-and-valid-cells). To [show current results](render-section-lifecycle.md#next-validation-gate), first verify actual main-view adoption and membership, correlate each accepted build, and invalidate on edits, removal and world/dimension changes. Measure observer cost and verify coherent main-pass projection separately. If passive coverage is insufficient, the [guarded scheduler](chunk-scanner.md) remains a fallback that still needs a verified render-ready feed and existing-only read. Never substitute the one-block Script API outcome for native evidence.

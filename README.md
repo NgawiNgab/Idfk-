@@ -1,6 +1,6 @@
 # Ore outlines for LeviLauncher
 
-Target: **Minecraft Bedrock 1.26.62** in an offline world. The main LeviPack is a **synthetic HUD test** and **loaded Build ID check**, not working ore outlines. A separate, default-off [Passive Terrain Probe](#passive-terrain-probe) tests whether normal mesh builds expose both visible and enclosed ore to a native observer. Neither package changes terrain, adds camera/caves controls or FullBright, or forces rebuilds.
+Target: **Minecraft Bedrock 1.26.62** in an offline world. The main LeviPack is a **synthetic HUD test** and **loaded Build ID check**, not working ore outlines. A separate, default-off [Passive Terrain Probe](#passive-terrain-probe) reports diamond samples from normal terrain builds. Neither package changes terrain, adds camera/caves controls or FullBright, or forces rebuilds.
 
 ## Build the LeviPack
 
@@ -37,9 +37,11 @@ The [user-reported loaded Build ID](docs/research/intake.md#loaded-build-id) mat
 
 ## Passive terrain probe
 
-This is the next device test, not a HUD-box update. On [PR #1](https://github.com/NgawiNgab/Idfk-/pull/1), use the separate **passive-terrain-probe-arm64** artifact and follow the [offline runbook](docs/research/passive-terrain.md#run-on-the-device). Keep the behavior pack off. The probe observes one existing pre-cull read per terrain cell and forwards it unchanged; it does not request blocks at the two test coordinates. It reports whether ordinary builder calls reached the exposed and enclosed controls. It does not draw ore outlines.
+**Try 0.2.0 on-device:** Use the separate **passive-terrain-probe-arm64** artifact from the [PR check](https://github.com/NgawiNgab/Idfk-/pull/1) and follow the [live discovery runbook](docs/research/live-terrain-discovery.md#run-on-the-device). Replace the old probe. In a disposable offline world, tap **Start discovery**, travel into fresh terrain, then **Freeze and show report**. The probe reports diamond samples at coordinates you did not enter, with sampled column/section counts. It forwards the builder's existing reads unchanged. This is a frozen report, not a live ore map or outline overlay.
 
-The diagnostic is off until **Start capture** runs the exact-build checks and attaches. **Freeze and show report** stops capture and detaches. Both the dispatch and lifecycle behavior still need device validation; use a disposable offline world with other mods off. To include the diagnostic in a local ARM64 build, set `BUILD_TERRAIN_DIAGNOSTIC=1` when running `scripts/build-levipack.sh`. This also produces `build/android-arm64/passive-terrain-probe.levipack`.
+The [original 0.1.0 device run](docs/research/passive-terrain.md#device-result) already saw both the exposed and stone-enclosed diamond markers; no repeat is needed. The [renderer lifecycle trace](docs/research/render-section-lifecycle.md) and 5 → 22 → 31 → 5 column host replay model current adoption and removal, but those events aren't wired to Minecraft. The 0.2.0 report is still awaiting a phone run.
+
+To include the diagnostic in a local ARM64 build, set `BUILD_TERRAIN_DIAGNOSTIC=1` when running `scripts/build-levipack.sh`. This also produces `build/android-arm64/passive-terrain-probe.levipack`.
 
 ## One-block offline test
 

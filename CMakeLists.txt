@@ -49,6 +49,7 @@ if(ORE_OUTLINE_TERRAIN_DIAGNOSTIC)
         src/launcher/build_id.cpp
         src/launcher/relro_slot.cpp
         src/launcher/terrain_probe.cpp
+        src/ore_outline/terrain_capture.cpp
     )
     # Disarming prevents new capture and restores the pointer; it does not drain
     # the workers that already read it. Keep the detour mapped until process exit.

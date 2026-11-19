@@ -55,6 +55,16 @@ struct BlockPos {
     return remainder < 0 ? remainder + 16 : remainder;
 }
 
+// Logical 16×16×16 section coordinates, not an engine/ABI type.
+struct SectionPos {
+    std::int32_t x, y, z;
+    auto operator<=>(const SectionPos&) const = default;
+};
+
+[[nodiscard]] constexpr SectionPos section_containing(BlockPos position) noexcept {
+    return {chunk_coordinate(position.x), chunk_coordinate(position.y), chunk_coordinate(position.z)};
+}
+
 struct WorldKey {
     std::uint64_t epoch; // Nonzero; change on world replacement, even for the same dimension.
     std::int32_t dimension;

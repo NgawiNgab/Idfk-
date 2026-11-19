@@ -5,6 +5,7 @@ HOST_TEST := $(BUILD_DIR)/ore-outline-core-test
 SCAN_TEST := $(BUILD_DIR)/ore-outline-chunk-scan-test
 BUILD_ID_TEST := $(BUILD_DIR)/ore-outline-build-id-test
 CAPTURE_TEST := $(BUILD_DIR)/ore-outline-terrain-capture-test
+PASSIVE_TEST := $(BUILD_DIR)/ore-outline-passive-sections-test
 SLOT_TEST := $(BUILD_DIR)/ore-outline-relro-slot-test
 CORE := src/ore_outline/core.cpp
 CORE_TEST := tests/core_test.cpp
@@ -20,11 +21,12 @@ WORLD_PROBE := $(BUILD_DIR)/world-probe/ore-outline-one-block-probe.mcpack
 WORLD_PROBE_FILES := probes/one-block/manifest.json probes/one-block/scripts/main.js probes/one-block/scripts/probe.js
 
 .PHONY: test test-world-probe world-probe
-test: $(HOST_TEST) $(SCAN_TEST) $(BUILD_ID_TEST) $(FIXTURES) $(CAPTURE_TEST) $(SLOT_TEST)
+test: $(HOST_TEST) $(SCAN_TEST) $(BUILD_ID_TEST) $(FIXTURES) $(CAPTURE_TEST) $(PASSIVE_TEST) $(SLOT_TEST)
 	"$(HOST_TEST)"
 	"$(SCAN_TEST)"
 	"$(BUILD_ID_TEST)" "$(abspath $(FIXTURE_MATCH))" "$(abspath $(FIXTURE_OTHER))" "$(abspath $(FIXTURE_NO_ID))"
 	"$(CAPTURE_TEST)"
+	"$(PASSIVE_TEST)"
 	"$(SLOT_TEST)"
 
 $(HOST_TEST): $(CORE) $(CORE_TEST) include/ore_outline/core.hpp Makefile
@@ -39,9 +41,13 @@ $(BUILD_ID_TEST): $(PROBE) $(PROBE_TEST) include/ore_outline/build_id.hpp Makefi
 	mkdir -p "$(@D)"
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(HOST_FLAGS) $(PROBE) $(PROBE_TEST) $(LDFLAGS) $(LDLIBS) -ldl -o "$@"
 
-$(CAPTURE_TEST): tests/terrain_capture_test.cpp include/ore_outline/terrain_capture.hpp include/ore_outline/core.hpp Makefile
+$(CAPTURE_TEST): tests/terrain_capture_test.cpp src/ore_outline/terrain_capture.cpp include/ore_outline/terrain_capture.hpp include/ore_outline/core.hpp Makefile
 	mkdir -p "$(@D)"
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(HOST_FLAGS) -pthread "$<" $(LDFLAGS) $(LDLIBS) -o "$@"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(HOST_FLAGS) -pthread "$<" src/ore_outline/terrain_capture.cpp $(LDFLAGS) $(LDLIBS) -o "$@"
+
+$(PASSIVE_TEST): $(CORE) src/ore_outline/passive_sections.cpp tests/passive_sections_test.cpp include/ore_outline/core.hpp include/ore_outline/passive_sections.hpp Makefile
+	mkdir -p "$(@D)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(HOST_FLAGS) $(CORE) src/ore_outline/passive_sections.cpp tests/passive_sections_test.cpp $(LDFLAGS) $(LDLIBS) -o "$@"
 
 $(SLOT_TEST): src/launcher/relro_slot.cpp src/launcher/relro_slot.hpp tests/relro_slot_test.cpp Makefile
 	mkdir -p "$(@D)"
