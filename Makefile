@@ -2,9 +2,12 @@ BUILD_DIR ?= build
 CXXFLAGS ?= -O2 -g
 HOST_FLAGS := -std=c++20 -Wall -Wextra -Wpedantic -Iinclude
 HOST_TEST := $(BUILD_DIR)/ore-outline-core-test
+SCAN_TEST := $(BUILD_DIR)/ore-outline-chunk-scan-test
 BUILD_ID_TEST := $(BUILD_DIR)/ore-outline-build-id-test
 CORE := src/ore_outline/core.cpp
 CORE_TEST := tests/core_test.cpp
+SCAN := src/ore_outline/chunk_scan.cpp
+SCAN_TEST_SRC := tests/chunk_scan_test.cpp
 PROBE := src/launcher/build_id.cpp
 PROBE_TEST := tests/build_id_test.cpp
 FIXTURE_MATCH := $(BUILD_DIR)/fixtures/build-id-match/libminecraftpe.so
@@ -15,13 +18,18 @@ WORLD_PROBE := $(BUILD_DIR)/world-probe/ore-outline-one-block-probe.mcpack
 WORLD_PROBE_FILES := probes/one-block/manifest.json probes/one-block/scripts/main.js probes/one-block/scripts/probe.js
 
 .PHONY: test test-world-probe world-probe
-test: $(HOST_TEST) $(BUILD_ID_TEST) $(FIXTURES)
+test: $(HOST_TEST) $(SCAN_TEST) $(BUILD_ID_TEST) $(FIXTURES)
 	"$(HOST_TEST)"
+	"$(SCAN_TEST)"
 	"$(BUILD_ID_TEST)" "$(abspath $(FIXTURE_MATCH))" "$(abspath $(FIXTURE_OTHER))" "$(abspath $(FIXTURE_NO_ID))"
 
 $(HOST_TEST): $(CORE) $(CORE_TEST) include/ore_outline/core.hpp Makefile
 	mkdir -p "$(@D)"
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(HOST_FLAGS) $(CORE) $(CORE_TEST) $(LDFLAGS) $(LDLIBS) -o "$@"
+
+$(SCAN_TEST): $(CORE) $(SCAN) $(SCAN_TEST_SRC) include/ore_outline/core.hpp include/ore_outline/chunk_scan.hpp Makefile
+	mkdir -p "$(@D)"
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(HOST_FLAGS) $(CORE) $(SCAN) $(SCAN_TEST_SRC) $(LDFLAGS) $(LDLIBS) -o "$@"
 
 $(BUILD_ID_TEST): $(PROBE) $(PROBE_TEST) include/ore_outline/build_id.hpp Makefile
 	mkdir -p "$(@D)"

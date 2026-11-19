@@ -35,8 +35,21 @@ The [stable `@minecraft/server` 2.3.0 declarations](https://registry.npmjs.org/@
 
 The control checks `(524288, 100, 524288)` but **never calls `getBlock` there**, even if unexpectedly loaded. Do not teleport there, set a block there, or add a ticking area. If it says `loaded` or `unknown`, the unloaded case is not confirmed; send the exact output. If `/scriptevent` produces no `[One Block]` output, first confirm the behavior pack is active in that world and the command was entered in player chat.
 
+## Device result
+
+**PASS, user-reported.** At `(0, 100, 0)` the probe returned the following in order. Each invocation also printed `Control: chunk=unloaded; getBlock=0`.
+
+| Observed `Block.typeId` | Probe status | Expected result in the native outline core |
+| --- | --- | --- |
+| `minecraft:diamond_ore` | `chunk=loaded; getBlock=1` | `Ore / Diamond`; track it when enabled and selected. |
+| `minecraft:stone` | `chunk=loaded; getBlock=1` | `Other`; remove any old outline there. |
+| `minecraft:air` | `chunk=loaded; getBlock=1` | `Air`; remove any old outline there. |
+| No value at the distant control | `chunk=unloaded; getBlock=0` | `Unavailable`, not air; no lookup or outline. |
+
+This is a reference result for the native reader, not a data bridge. The [C++ core](../../README.md#host-only-outline-core) already handles these copied names and `std::nullopt` in host tests. An eventual native diagnostic must independently reproduce the results in the same offline world, with the pack disabled, on a verified update path and without scanning or using the camera. An air-like native fallback cannot stand in for the loaded-air result.
+
 ## Build and evidence limits
 
 `make test-world-probe world-probe` runs Node fixture tests and packages the root manifest and two scripts as `build/world-probe/ore-outline-one-block-probe.mcpack`. The CI job uploads it separately from the ARM64 LeviPack. No game, client assets, or native libraries go into this behavior pack.
 
-The tests prove the script's call counts, guard behavior, and formatting with fixtures. A successful device run would confirm the world values and the unavailable control **through the supported Script API**. The counter is the script's `getBlock` call count, not instrumentation of engine generation or cache internals. This does not certify an independent native loadedness check, object lifetime, or game-to-HUD projection. Device results are pending.
+The tests cover the script's call counts, guard behavior, and formatting with fixtures. The device output establishes the reference values **through the supported Script API**. The counter is the script's `getBlock` call count, not instrumentation of engine generation or cache internals. This does not certify an independent native loadedness check, object lifetime, or game-to-HUD projection.

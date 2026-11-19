@@ -25,6 +25,7 @@ FetchContent_MakeAvailable(preloader_sdk)
 add_library(ore_outline SHARED
     src/launcher/build_id.cpp
     src/launcher/hud_preview.cpp
+    src/ore_outline/chunk_scan.cpp
     src/ore_outline/core.cpp
 )
 target_include_directories(ore_outline PRIVATE include)

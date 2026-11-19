@@ -37,16 +37,20 @@ The [user-reported loaded Build ID](docs/research/intake.md#loaded-build-id) mat
 
 ## One-block offline test
 
-The [one-block world probe](docs/research/one-block-world-probe.md#run-on-the-device) is a separate `.mcpack` test fixture. It uses the supported Bedrock Script API to check diamond ore, stone, and air at the same position, with a distant guard-only control. It does not add native world reads, scanning, or camera access to the LeviPack. CI uploads it as **one-block-world-probe**.
+The [one-block world probe](docs/research/one-block-world-probe.md#run-on-the-device) is a separate `.mcpack` test fixture, uploaded by CI as **one-block-world-probe**. The [user-reported device run passed](docs/research/one-block-world-probe.md#device-result): diamond ore → stone → air at the same loaded position, plus an unloaded guard-only control. This is a reference for testing a future native reader, not a LeviPack dependency or validation of native world or camera access.
 
 ## Host-only outline core
 
 On Linux, run `make test` with GNU Make, a C++20 compiler, and GNU binutils. The tests use synthetic values and tiny shared-library fixtures; no game library, launcher, or Android toolchain is required.
 
 - The core is **off** by default, with no categories selected. It matches exact `minecraft:` names for coal, copper, iron, gold, redstone, lapis, diamond, emerald, quartz, and ancient debris, including the relevant deepslate ores, nether gold, and lit redstone. It excludes crafted storage blocks and other non-ore targets. RGB values follow the ore entries in [Apollon's reference trace](docs/research/apollon.md#acquisition--classification--rendering). All 21 names occur as strings in the [Drive sample](docs/research/intake.md#binary-intake); that does not prove a device name accessor.
-- A caller supplies a world epoch, dimension, inclusive bounds, and copied observations. No game object or borrowed string is retained. An unavailable read (`std::nullopt`), read of air, or replacement with a non-ore removes the old ore. Range and filter changes prune the cache; disabling or leaving/replacing the world clears it. The caller must budget scanning and revalidate positions. There is no Minecraft reader or scan scheduler yet.
+- A caller supplies a world epoch, dimension, inclusive bounds, and copied observations. No game object or borrowed string is retained. An unavailable read (`std::nullopt`), read of air, or replacement with a non-ore removes the old ore. Range and filter changes prune the cache; disabling or leaving/replacing the world clears it. The native game reader that would supply those observations is not wired yet.
 - Projection clips box edges before the perspective divide, skips shared edges already drawn, and returns at most 1,024 lines by default (hard maximum 3,072 across 256 blocks). The HUD test uses a synthetic matrix and a smaller 24-line cap. The core does not infer the game's projection convention.
+
+## Native chunk scheduler (fixture-tested)
+
+The [C++ scheduler](docs/research/chunk-scanner.md) takes render-ready section coordinates, derives its own block positions, and scans the nearby sections with a per-update budget. Host tests discover ores across two adjacent chunks without supplying ore coordinates, skip non-ready/out-of-range sections, and clear on revision, range and world changes. It is compiled in the ARM64 target, but the LeviPack does not run it against Minecraft. No new install is needed for this milestone.
 
 ## Evidence and remaining work
 
-[XRAY-008](docs/research/xray-008-evidence.md) matched all eight requested windows (340 decoded instructions) to the separate Drive sample. The lookup can mutate the region's chunk cache and uses branch-specific status checks. Camera position and matrix-copy paths are corroborated, but the active pass and viewport are not. The [port plan](docs/research/xray-port-1.26.62.md) records what still gates real ore outlines: verify a non-generating block read with a valid lifetime and obtain coherent main-pass camera data. No further static batch is pending.
+[XRAY-008](docs/research/xray-008-evidence.md) matched all eight requested windows (340 decoded instructions) to the separate Drive sample. The lookup can mutate the region's chunk cache and uses branch-specific status checks. Camera position and matrix-copy paths are corroborated, but the active pass and viewport are not. The [port plan](docs/research/xray-port-1.26.62.md) records what still gates real ore outlines: verify a client render-ready section feed, a non-generating block read with a valid lifetime, and coherent main-pass camera data. No further static batch is pending.
