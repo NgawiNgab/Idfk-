@@ -15,20 +15,26 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Test the outline core, chunk scheduler, and Build ID probe
+      - name: Test the core, scheduler, and passive probe guards
         run: make test
       - uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
         id: ndk
         with:
           ndk-version: r28c
-      - name: Build and verify LeviPack
+      - name: Build and verify both LeviPacks
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          BUILD_TERRAIN_DIAGNOSTIC: 1
         run: bash scripts/build-levipack.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ore-outline-hud-test-arm64
           path: build/android-arm64/ore-outline-hud-test.levipack
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: passive-terrain-probe-arm64
+          path: build/android-arm64/passive-terrain-probe.levipack
           if-no-files-found: error
   world-probe:
     runs-on: ubuntu-24.04

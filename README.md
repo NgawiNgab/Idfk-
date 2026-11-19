@@ -1,6 +1,6 @@
 # Ore outlines for LeviLauncher
 
-Target: **Minecraft Bedrock 1.26.62** in an offline world. This package includes a native Android **synthetic HUD test** and an opt-in **loaded Build ID check**, not a working ore X-ray. There are no Minecraft hooks, native game bindings, camera/caves controls, FullBright, or forced terrain rebuilds.
+Target: **Minecraft Bedrock 1.26.62** in an offline world. The main LeviPack is a **synthetic HUD test** and **loaded Build ID check**, not working ore outlines. A separate, default-off [Passive Terrain Probe](#passive-terrain-probe) tests whether normal mesh builds expose both visible and enclosed ore to a native observer. Neither package changes terrain, adds camera/caves controls or FullBright, or forces rebuilds.
 
 ## Build the LeviPack
 
@@ -35,6 +35,12 @@ The switch takes one snapshot when enabled. It enumerates already loaded objects
 
 The [user-reported loaded Build ID](docs/research/intake.md#loaded-build-id) matched the Drive sample. No game bindings are enabled.
 
+## Passive terrain probe
+
+This is the next device test, not a HUD-box update. On [PR #1](https://github.com/NgawiNgab/Idfk-/pull/1), use the separate **passive-terrain-probe-arm64** artifact and follow the [offline runbook](docs/research/passive-terrain.md#run-on-the-device). Keep the behavior pack off. The probe observes one existing pre-cull read per terrain cell and forwards it unchanged; it does not request blocks at the two test coordinates. It reports whether ordinary builder calls reached the exposed and enclosed controls. It does not draw ore outlines.
+
+The diagnostic is off until **Start capture** runs the exact-build checks and attaches. **Freeze and show report** stops capture and detaches. Both the dispatch and lifecycle behavior still need device validation; use a disposable offline world with other mods off. To include the diagnostic in a local ARM64 build, set `BUILD_TERRAIN_DIAGNOSTIC=1` when running `scripts/build-levipack.sh`. This also produces `build/android-arm64/passive-terrain-probe.levipack`.
+
 ## One-block offline test
 
 The [one-block world probe](docs/research/one-block-world-probe.md#run-on-the-device) is a separate `.mcpack` test fixture, uploaded by CI as **one-block-world-probe**. The [user-reported device run passed](docs/research/one-block-world-probe.md#device-result): diamond ore → stone → air at the same loaded position, plus an unloaded guard-only control. This is a reference for testing a future native reader, not a LeviPack dependency or validation of native world or camera access.
@@ -53,4 +59,4 @@ The [C++ scheduler](docs/research/chunk-scanner.md) takes render-ready section c
 
 ## Evidence and remaining work
 
-[XRAY-008](docs/research/xray-008-evidence.md) matched all eight requested windows (340 decoded instructions) to the separate Drive sample. The lookup can mutate the region's chunk cache and uses branch-specific status checks. Camera position and matrix-copy paths are corroborated, but the active pass and viewport are not. The [port plan](docs/research/xray-port-1.26.62.md) records what still gates real ore outlines: verify a client render-ready section feed, a non-generating block read with a valid lifetime, and coherent main-pass camera data. No further static batch is pending.
+[XRAY-008](docs/research/xray-008-evidence.md) matched all eight requested windows (340 decoded instructions) to the separate Drive sample. The lookup can mutate the region's chunk cache and uses branch-specific status checks, which is why the passive probe observes only the game's existing calls. The [port plan](docs/research/xray-port-1.26.62.md) tracks the remaining gates: native coverage, world and section lifetime, stale-result removal, and coherent main-pass projection at a measured cost. No further static batch is pending.

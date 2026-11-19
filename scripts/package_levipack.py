@@ -11,6 +11,7 @@ import tempfile
 from zipfile import ZIP_DEFLATED, ZipFile
 
 ENTRY = "libore_outline.so"
+TERRAIN_ENTRY = "libore_outline_terrain.so"
 MANIFEST = Path(__file__).resolve().parents[1] / "package" / "manifest.json"
 
 
@@ -24,12 +25,12 @@ def readelf(library: Path, option: str) -> str:
     ).stdout
 
 
-def validate_library(library: Path) -> None:
+def validate_library(library: Path, entry: str = ENTRY) -> None:
     with library.open("rb") as f:
         header = f.read(64)
-    if (library.name != ENTRY or len(header) != 64 or header[:7] != b"\x7fELF\x02\x01\x01"
+    if (library.name != entry or len(header) != 64 or header[:7] != b"\x7fELF\x02\x01\x01"
             or struct.unpack_from("<HH", header, 16) != (3, 183)):
-        raise ValueError(f"Expected an ELF64 little-endian AArch64 shared object named {ENTRY}")
+        raise ValueError(f"Expected an ELF64 little-endian AArch64 shared object named {entry}")
     if ".note.android.ident" not in readelf(library, "--notes"):
         raise ValueError("Missing Android NDK identification note")
 
@@ -41,6 +42,8 @@ def validate_library(library: Path) -> None:
         raise ValueError(f"Unexpected module dependencies: {', '.join(sorted(needed))}")
     if re.search(r"\((?:RUNPATH|RPATH)\)", dynamic):
         raise ValueError("The module may not embed build-machine library search paths")
+    if entry == TERRAIN_ENTRY and not re.search(r"\(FLAGS_1\)[^\n]*\bNODELETE\b", dynamic):
+        raise ValueError("The passive terrain probe must remain mapped until process exit (DF_1_NODELETE)")
 
     symbols = (line.split() for line in readelf(library, "--dyn-syms").splitlines())
     if not any(len(s) >= 8 and s[3:6] == ["FUNC", "GLOBAL", "DEFAULT"]
@@ -52,23 +55,26 @@ def validate_library(library: Path) -> None:
         raise ValueError("All LOAD segments must support 16 KiB page alignment")
 
 
-def write_package(library: Path, output: Path) -> None:
+def write_package(library: Path, output: Path, manifest_path: Path = MANIFEST) -> None:
     if output.suffix != ".levipack":
         raise ValueError("Output must end in .levipack")
-    manifest = MANIFEST.read_bytes()
+    manifest = manifest_path.read_bytes()
     spec = json.loads(manifest)
-    if spec.get("type") != "preload-native" or spec.get("entry") != ENTRY:
-        raise ValueError("Manifest must describe the root preload-native entry")
-    validate_library(library)
+    if not isinstance(spec, dict):
+        raise ValueError("Manifest must be a JSON object")
+    entry = spec.get("entry")
+    if spec.get("type") != "preload-native" or entry not in (ENTRY, TERRAIN_ENTRY):
+        raise ValueError("Manifest must describe an allowed root preload-native entry")
+    validate_library(library, entry)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as temp:
         archive_path = Path(temp) / output.name
         with ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", manifest)
-            archive.write(library, ENTRY)
+            archive.write(library, entry)
         with ZipFile(archive_path) as archive:
-            if archive.namelist() != ["manifest.json", ENTRY] or archive.testzip() is not None:
+            if archive.namelist() != ["manifest.json", entry] or archive.testzip() is not None:
                 raise ValueError("Invalid .levipack layout or CRC")
         archive_path.replace(output)
 
@@ -77,9 +83,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--library", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--manifest", default=MANIFEST, type=Path)
     args = parser.parse_args()
     try:
-        write_package(args.library, args.output)
+        write_package(args.library, args.output, args.manifest)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Package error: {error}\n")
     print(args.output)

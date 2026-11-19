@@ -1,0 +1,7 @@
+{
+  "type": "preload-native",
+  "name": "Passive Terrain Probe",
+  "version": "0.1.0",
+  "description": "Experimental offline-only test of exposed and enclosed ore observations during normal terrain builds. Default off. No ore outlines or behavior pack.",
+  "entry": "libore_outline_terrain.so"
+}

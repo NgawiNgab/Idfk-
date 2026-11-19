@@ -76,6 +76,49 @@ void* load_fixture(const char* path) {
     return handle;
 }
 
+void test_code_gate(const char* matching_path, const char* other_path, const char* missing_path) {
+    using enum probe::CodeStatus;
+    CHECK(probe::verify_loaded_game_code(probe::kDriveBuildId, {}).status == NotLoaded);
+    auto* matching = load_fixture(matching_path);
+    const auto function = dlsym(matching, "ore_outline_build_id_fixture");
+    const auto slot = dlsym(matching, "ore_outline_build_id_fixture_slot");
+    Dl_info image{};
+    CHECK(function && slot && dladdr(function, &image) != 0);
+    const auto bias = reinterpret_cast<std::uintptr_t>(image.dli_fbase);
+    const auto entry = reinterpret_cast<std::uintptr_t>(function) - bias;
+    const auto field = reinterpret_cast<std::uintptr_t>(slot) - bias;
+    const std::array intact{*static_cast<const std::uint8_t*>(function)};
+    const std::array changed{static_cast<std::uint8_t>(intact[0] ^ 0xff)};
+    const std::array guard{probe::CodeSpan{entry, intact}};
+    const auto verify = [&](std::span<const probe::CodeSpan> code,
+                            probe::RelroSlot pointer = {}) {
+        return probe::verify_loaded_game_code(probe::kDriveBuildId, code,
+                                             pointer.elf_address ? std::optional{pointer} : std::nullopt);
+    };
+    const auto match = verify(guard, {field, entry});
+    CHECK(match.status == Match && match.load_bias == bias);
+    const auto check = [](probe::CodeMatch result, probe::CodeStatus expected) {
+        CHECK(result.status == expected && result.load_bias == 0);
+    };
+    check(verify(std::array{probe::CodeSpan{entry, changed}}), DifferentCode);
+    check(verify(std::array{probe::CodeSpan{field, intact}}), DifferentCode);
+    check(verify(std::array{probe::CodeSpan{UINTPTR_MAX, intact}}), DifferentCode);
+    check(verify({}), DifferentCode);
+    check(verify(guard, {field, entry + 1}), DifferentSlot);
+    check(verify(guard, {field + 1, entry}), DifferentSlot);
+    check(verify(guard, {entry, entry}), DifferentSlot);
+    check(verify(guard, {field, UINTPTR_MAX}), DifferentSlot);
+
+    auto* other = load_fixture(other_path);
+    check(verify(guard, {field, entry}), MultipleModules);
+    CHECK(dlclose(matching) == 0);
+    check(verify(guard, {field, entry}), DifferentBuild);
+    CHECK(dlclose(other) == 0);
+    auto* missing = load_fixture(missing_path);
+    check(verify(guard), Unavailable);
+    CHECK(dlclose(missing) == 0);
+}
+
 void test_loaded_modules(const char* matching_path, const char* other_path, const char* missing_path) {
     CHECK(probe::query_loaded_game().status == probe::Status::NotLoaded);
     auto* matching = load_fixture(matching_path);
@@ -101,5 +144,6 @@ int main(int argc, char** argv) {
     CHECK(argc == 4);
     test_note_parser();
     test_loaded_modules(argv[1], argv[2], argv[3]);
-    std::cout << "loaded Build ID: note bounds, link-map matching, ambiguity and missing IDs passed\n";
+    test_code_gate(argv[1], argv[2], argv[3]);
+    std::cout << "loaded Build ID: note bounds, unique module, exact code and relocated RELRO gate passed\n";
 }

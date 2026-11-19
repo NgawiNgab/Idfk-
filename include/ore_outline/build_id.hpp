@@ -40,4 +40,27 @@ struct Result {
 // library or access a game object, function, cache file, or world.
 [[nodiscard]] Result query_loaded_game() noexcept;
 
+struct CodeSpan {
+    std::uintptr_t elf_address;
+    std::span<const std::uint8_t> expected_bytes;
+};
+struct RelroSlot {
+    std::uintptr_t elf_address;
+    std::uintptr_t target_elf_address;
+};
+enum class CodeStatus {
+    NotLoaded, MultipleModules, Unavailable, DifferentBuild, DifferentCode, DifferentSlot, Match
+};
+struct CodeMatch {
+    CodeStatus status = CodeStatus::NotLoaded;
+    std::uintptr_t load_bias = 0; // Valid only on Match; does not pin the module.
+};
+
+// Require a unique module, a matching note, and exact bytes in file-backed R-X
+// ranges of its existing mapping. If specified, also check one relocated pointer
+// in a file-backed non-executable GNU_RELRO range. Does not write or pin memory.
+[[nodiscard]] CodeMatch verify_loaded_game_code(std::string_view expected_id,
+                                                std::span<const CodeSpan> spans,
+                                                std::optional<RelroSlot> slot = {}) noexcept;
+
 } // namespace ore_outline::build_id

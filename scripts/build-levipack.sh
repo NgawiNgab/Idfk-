@@ -13,12 +13,25 @@ if ! grep -Eq '^Pkg\.Revision[[:space:]]*=[[:space:]]*28\.2\.13676358[[:space:]]
     exit 1
 fi
 ndk=$(cd -- "$ndk" && pwd)
+diagnostic=OFF
+targets=(ore_outline)
+if [[ ${BUILD_TERRAIN_DIAGNOSTIC:-0} == 1 ]]; then
+    diagnostic=ON
+    targets+=(ore_outline_terrain)
+fi
 
 cmake -S "$root" -B "$build_dir" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_TOOLCHAIN_FILE="$ndk/build/cmake/android.toolchain.cmake" \
-    -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 -DANDROID_STL=c++_shared
-cmake --build "$build_dir" --target ore_outline --parallel "${BUILD_JOBS:-2}"
+    -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 -DANDROID_STL=c++_shared \
+    -DORE_OUTLINE_TERRAIN_DIAGNOSTIC="$diagnostic"
+cmake --build "$build_dir" --target "${targets[@]}" --parallel "${BUILD_JOBS:-2}"
 python3 "$root/scripts/package_levipack.py" \
     --library "$build_dir/mod/libore_outline.so" \
     --output "$build_dir/ore-outline-hud-test.levipack"
+if [[ "$diagnostic" == ON ]]; then
+    python3 "$root/scripts/package_levipack.py" \
+        --manifest "$root/package/terrain-probe.json" \
+        --library "$build_dir/mod/libore_outline_terrain.so" \
+        --output "$build_dir/passive-terrain-probe.levipack"
+fi

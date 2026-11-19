@@ -22,19 +22,35 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(preloader_sdk)
 
-add_library(ore_outline SHARED
+function(add_levi_module target)
+    add_library(${target} SHARED ${ARGN})
+    target_include_directories(${target} PRIVATE include)
+    target_link_libraries(${target} PRIVATE preloader dl)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    target_link_options(${target} PRIVATE -Wl,--no-undefined -Wl,-z,max-page-size=16384)
+    set_target_properties(${target} PROPERTIES
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
+        SKIP_BUILD_RPATH YES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/mod"
+    )
+endfunction()
+
+add_levi_module(ore_outline
     src/launcher/build_id.cpp
     src/launcher/hud_preview.cpp
     src/ore_outline/chunk_scan.cpp
     src/ore_outline/core.cpp
 )
-target_include_directories(ore_outline PRIVATE include)
-target_link_libraries(ore_outline PRIVATE preloader dl)
-target_compile_options(ore_outline PRIVATE -Wall -Wextra -Wpedantic)
-target_link_options(ore_outline PRIVATE -Wl,--no-undefined -Wl,-z,max-page-size=16384)
-set_target_properties(ore_outline PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN YES
-    SKIP_BUILD_RPATH YES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/mod"
-)
+
+option(ORE_OUTLINE_TERRAIN_DIAGNOSTIC "Build the separate, opt-in passive terrain probe" OFF)
+if(ORE_OUTLINE_TERRAIN_DIAGNOSTIC)
+    add_levi_module(ore_outline_terrain
+        src/launcher/build_id.cpp
+        src/launcher/relro_slot.cpp
+        src/launcher/terrain_probe.cpp
+    )
+    # Disarming prevents new capture and restores the pointer; it does not drain
+    # the workers that already read it. Keep the detour mapped until process exit.
+    target_link_options(ore_outline_terrain PRIVATE -Wl,-z,nodelete)
+endif()
