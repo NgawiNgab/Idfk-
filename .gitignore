@@ -1,0 +1,15 @@
+# Large binaries / downloads (kept on disk, not in git)
+google_drive/
+mods/apollon/game/
+mods/apollon/game_lib/
+mods/apollon/build/jni/
+mods/apollon/build/obj/
+mods/apollon/build/obj_and/
+mods/apollon/build/obj_test/
+mods/apollon/build/stublibs/
+mods/apollon/build/fakes/
+mods/apollon/build/out/
+mods/apollon/source/Apollon_Client_ImGui/app/build/
+*.o
+*.so
+*.xz

@@ -1,0 +1,88 @@
+# PatchApollon.patch
+#
+# Portability + toolchain fixes needed to build "Apollon Client ImGui v4.62"
+# for modern Android (bionic r28 headers, clang/zig cross-compile) instead of
+# the original ancient `ndk-build` setup.
+#
+# MECHANICAL fixes only. No gameplay behaviour changes.
+# offsets.h is deliberately UNTOUCHED - see OFFSETS.md for why it cannot be
+# trusted on Minecraft 1.26.66.1 and what a real port requires.
+#
+# Layout:
+#   original/  = untouched Apollon jni tree
+#   patched/   = tree this port builds
+#
+# Review:   diff -ruN original patched
+# Apply:    cp -r jni original && cp -r jni patched && patch -p0 < PatchApollon.patch
+#
+# The five changes (each hunk explains itself):
+#   ENCRYPT/oxorany.h                    + <stddef.h>   (size_t on non-kernel path)
+#   ImGui/backends/imgui_impl_android.h  + <stdint.h>   (int32_t used before include)
+#   KittyMemory/MemoryPatch.cpp          uintptr_t == NULL  ->  == 0
+#   Substrate/CydiaSubstrate.h           hoist <sys/types.h> out of #ifdef __APPLE__
+#   variables.h                          3x `float = NULL` -> `= 0`
+#
+diff -ruN original/ENCRYPT/oxorany.h patched/ENCRYPT/oxorany.h
+--- original/ENCRYPT/oxorany.h	2026-11-21 08:55:42.936667853 +0000
++++ patched/ENCRYPT/oxorany.h	2026-11-21 08:55:42.968668368 +0000
+@@ -37,6 +37,7 @@
+ typedef SIZE_T _lxy__size_t;
+ #else
+ #include <stdint.h>
++#include <stddef.h>
+ typedef uint8_t _lxy__uint8_t;
+ typedef uint32_t _lxy__uint32_t;
+ typedef uint64_t _lxy__uint64_t;
+diff -ruN original/ImGui/backends/imgui_impl_android.h patched/ImGui/backends/imgui_impl_android.h
+--- original/ImGui/backends/imgui_impl_android.h	2026-11-21 08:55:42.936667853 +0000
++++ patched/ImGui/backends/imgui_impl_android.h	2026-11-21 08:55:42.968668368 +0000
+@@ -17,6 +17,7 @@
+ // Read online: https://github.com/ocornut/imgui/tree/master/docs
+ 
+ #pragma once
++#include <stdint.h>
+ 
+ struct ANativeWindow;
+ struct AInputEvent;
+diff -ruN original/KittyMemory/MemoryPatch.cpp patched/KittyMemory/MemoryPatch.cpp
+--- original/KittyMemory/MemoryPatch.cpp	2026-11-21 08:55:42.948668046 +0000
++++ patched/KittyMemory/MemoryPatch.cpp	2026-11-21 08:55:42.984668625 +0000
+@@ -86,7 +86,7 @@
+   MemoryPatch MemoryPatch::absoluteWithHex(uintptr_t absolute_address, std::string hex) {
+     MemoryPatch patch;
+ 
+-    if (absolute_address == NULL || !KittyUtils::validateHexString(hex))
++    if (absolute_address == 0 || !KittyUtils::validateHexString(hex))
+       return patch;
+ 
+     patch._address = absolute_address;
+diff -ruN original/Substrate/CydiaSubstrate.h patched/Substrate/CydiaSubstrate.h
+--- original/Substrate/CydiaSubstrate.h	2026-11-21 08:55:42.952668110 +0000
++++ patched/Substrate/CydiaSubstrate.h	2026-11-21 08:55:42.984668625 +0000
+@@ -22,6 +22,10 @@
+ #ifndef SUBSTRATE_H_
+ #define SUBSTRATE_H_
+ 
++#include <sys/types.h>
++#include <stddef.h>
++#include <stdint.h>
++
+ #ifdef __APPLE__
+ #ifdef __cplusplus
+ extern "C" {
+diff -ruN original/variables.h patched/variables.h
+--- original/variables.h	2026-11-21 08:55:42.968668368 +0000
++++ patched/variables.h	2026-11-21 08:55:43.000668883 +0000
+@@ -134,9 +134,9 @@
+ Player *nearestTarget = NULL;
+ Player *nearestKillTarget = NULL;
+ Mob *nearestMob = NULL;
+-float playerPosX = NULL;
+-float playerPosY = NULL;
+-float playerPosZ = NULL;
++float playerPosX = 0;
++float playerPosY = 0;
++float playerPosZ = 0;
+ int currentKillTick = 1;
+ int currentAutoClickTick = 1;
+ int currentMobTick = 1;

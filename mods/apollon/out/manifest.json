@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "type": "preload-native",
+  "name": "Apollon ImGui",
+  "version": "4.62-opt",
+  "author": "Apollon / ZEFF",
+  "entry": "libapollon_imgu.so",
+  "minecraft_versions": [
+    "1.26.66.1"
+  ],
+  "description": "Apollon Client ImGui v4.62 rebased for Minecraft Bedrock 1.26.66.1 (aarch64). ImGui overlay + gameplay modules. Build: zig aarch64-linux-android, bionic r28 headers, static libc++ (c++_shared ABI)."
+}
