@@ -1,0 +1,464 @@
+{
+ "Font": {
+  "addr": 0,
+  "old": 40092420,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "NoHurtCam": {
+  "addr": 0,
+  "old": 84949104,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "NoCamDistortion": {
+  "addr": 0,
+  "old": 234187284,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "NoBoatRotation": {
+  "addr": 145188196,
+  "old": 85019576,
+  "src": "CameraVehicleRotationLookSystem::tick",
+  "note": ""
+ },
+ "NoCamSleep": {
+  "addr": 0,
+  "old": 234190160,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "PlaceCamera": {
+  "addr": 300664900,
+  "old": 236832892,
+  "src": "CameraBlendSystem::_tick",
+  "note": ""
+ },
+ "WaterTrigger1": {
+  "addr": 0,
+  "old": 107313368,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "WaterTrigger2": {
+  "addr": 0,
+  "old": 154893212,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "WaterTrigger3": {
+  "addr": 0,
+  "old": 98787220,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SlowDownTriggers": {
+  "addr": 203789232,
+  "old": 156549348,
+  "src": "BlockMovementSlowdownMultiplierSystemImpl::applySlowdownOnMove",
+  "note": ""
+ },
+ "NoSlowDown": {
+  "addr": 202537612,
+  "old": 155570736,
+  "src": "details16CandidateAdapterIXadL_ZN25ItemUseSlowdownSystemImpl::tickItemUseSlowdown",
+  "note": ""
+ },
+ "WaterSpeed": {
+  "addr": 215756648,
+  "old": 166013552,
+  "src": "details16CandidateAdapterIXadL_ZL17doWaterMoveSystemN4entt9type_listIJ::IncludeIJ24WaterTravelFlagComponent",
+  "note": ""
+ },
+ "LavaSpeed": {
+  "addr": 202593260,
+  "old": 155221808,
+  "src": "SingleViewSystemWithBlockSourceIXadL_ZL::doLavaMoveSystemRK19Strict",
+  "note": ""
+ },
+ "Noclip": {
+  "addr": 0,
+  "old": 155002720,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "XrayCameraThird": {
+  "addr": 300647260,
+  "old": 236827300,
+  "src": "CameraAvoidanceSystem::tickILb1",
+  "note": ""
+ },
+ "LavaDrown": {
+  "addr": 215272600,
+  "old": 165385512,
+  "src": "SingleViewSystemWithBlockSourceIXadL_ZN::MobMovementGravity15tickLavaGravity",
+  "note": ""
+ },
+ "WaterDrown": {
+  "addr": 215270412,
+  "old": 165377368,
+  "src": "details16CandidateAdapterIXadL_ZN18MobMovementGravity::tickPlayerWaterGravity",
+  "note": ""
+ },
+ "Fov": {
+  "addr": 0,
+  "old": 129751808,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SpeedHack": {
+  "addr": 203212976,
+  "old": 155813704,
+  "src": "SingleViewSystemWithBlockSourceIXadL_ZN::DefaultMoveSystems20doDefaultMoveSystems",
+  "note": ""
+ },
+ "JumpHack": {
+  "addr": 0,
+  "old": 165206000,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "Gravity": {
+  "addr": 215270412,
+  "old": 165186592,
+  "src": "details16CandidateAdapterIXadL_ZN18MobMovementGravity::tickPlayerWaterGravity",
+  "note": ""
+ },
+ "AutoClickMine": {
+  "addr": 0,
+  "old": 214704728,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "FastBridge": {
+  "addr": 0,
+  "old": 214709840,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "BlockReach": {
+  "addr": 0,
+  "old": 214715248,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "PlayerAuthInput": {
+  "addr": 0,
+  "old": 175579496,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "NativeKeyHandler": {
+  "addr": 0,
+  "old": 217731376,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "InMainMenu": {
+  "addr": 0,
+  "old": 101214900,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "InLanGame1": {
+  "addr": 0,
+  "old": 237412360,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "InLanGame2": {
+  "addr": 0,
+  "old": 237412916,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "FastDrop": {
+  "addr": 0,
+  "old": 104173276,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "UnlockMarket": {
+  "addr": 0,
+  "old": 124581408,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetMaxPlayers": {
+  "addr": 0,
+  "old": 236241860,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "FogState": {
+  "addr": 0,
+  "old": 130060040,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetupFog": {
+  "addr": 0,
+  "old": 130024480,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "FullBright": {
+  "addr": 0,
+  "old": 113686876,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "ForEachActivePlayer": {
+  "addr": 0,
+  "old": 216643828,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetRuntimeActor": {
+  "addr": 0,
+  "old": 225119592,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "IsAttackable": {
+  "addr": 0,
+  "old": 211137792,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "Attack": {
+  "addr": 0,
+  "old": 214697820,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "LerpMotion": {
+  "addr": 0,
+  "old": 211057884,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "NormalTick": {
+  "addr": 0,
+  "old": 113170980,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "Swing": {
+  "addr": 0,
+  "old": 113181468,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetSprinting": {
+  "addr": 0,
+  "old": 113182136,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetEntityTypeId": {
+  "addr": 0,
+  "old": 210990744,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetHealth": {
+  "addr": 0,
+  "old": 211040208,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetClimbing": {
+  "addr": 0,
+  "old": 211047952,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetYHeadRot": {
+  "addr": 0,
+  "old": 211136304,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetYBodyRot": {
+  "addr": 0,
+  "old": 210159060,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetInvisible": {
+  "addr": 0,
+  "old": 211130296,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "Intersects": {
+  "addr": 0,
+  "old": 211055228,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetYHeadRot": {
+  "addr": 0,
+  "old": 211136088,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "InitMaxAutoStep": {
+  "addr": 0,
+  "old": 211119188,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetAABBDim": {
+  "addr": 0,
+  "old": 211005016,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "IsEmoting": {
+  "addr": 0,
+  "old": 216036008,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "NoBlur1": {
+  "addr": 0,
+  "old": 129753572,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "NoBlur2": {
+  "addr": 0,
+  "old": 129755828,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "ShowPaperdoll": {
+  "addr": 0,
+  "old": 104284088,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "Subtitle": {
+  "addr": 0,
+  "old": 103900356,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetAbilities": {
+  "addr": 0,
+  "old": 215979068,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetLayer": {
+  "addr": 0,
+  "old": 215979088,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetAbility": {
+  "addr": 0,
+  "old": 215975904,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "ClientInstanceOnTick": {
+  "addr": 0,
+  "old": 105350964,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "HandleDestroyOrAttack": {
+  "addr": 0,
+  "old": 105261920,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "PlayUI": {
+  "addr": 0,
+  "old": 105426648,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetNoJumpDelay": {
+  "addr": 0,
+  "old": 215856144,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "SetOnGround": {
+  "addr": 0,
+  "old": 116665852,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "MobIsJumping": {
+  "addr": 0,
+  "old": 215844928,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "DisplayMessage": {
+  "addr": 0,
+  "old": 113187180,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "Block_getRenderLayer": {
+  "addr": 0,
+  "old": 223535348,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "RebuildAllChunkGeometry": {
+  "addr": 0,
+  "old": 129962152,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "VignetteRenderer": {
+  "addr": 0,
+  "old": 104292484,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "NoNametags": {
+  "addr": 0,
+  "old": 112125964,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "ScreenName": {
+  "addr": 0,
+  "old": 105400364,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetNameTag": {
+  "addr": 0,
+  "old": 211076200,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetDimensionBlockSource": {
+  "addr": 0,
+  "old": 210966768,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "GetBlock": {
+  "addr": 0,
+  "old": 216944244,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ },
+ "IsAir": {
+  "addr": 0,
+  "old": 217741564,
+  "src": null,
+  "note": "no registry-named body; needs runtime/vtable anchor"
+ }
+}

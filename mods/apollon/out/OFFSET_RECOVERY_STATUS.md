@@ -122,3 +122,84 @@ three with non-zero deltas (`NoCamDistortion`, `LavaSpeed`, `SpeedHack`) and the
 frameless `SlowDownTriggers` (`sub sp,#0x90` instead of `stp`).
 
 **Blocked on input:** a 1.21.x `libminecraftpe.so` to use as the far side of the diff.
+
+---
+
+# ROUND 3 -- 1.21.x binary obtained; two prior claims retracted
+
+Input: `Nothing/Library` split archive, 6 parts, 280,201,576 B -> `libminecraftpe.so`
+280,201,408 B md5 `a2c729915ddcbe5b38b3200bff14ec86`, `.text` at `0x04FD5240`.
+Proven to be the right generation: **76 of the 77 shipped `Offsets64` entries land
+inside this binary's `.text`**; the single exception is `Font = 0x263C304`, which sits
+in `.rodata` exactly as its "Default 1 float" comment implies.
+
+## RETRACTION 1 -- the "Gravity = 0xCD2266C, verified with -0.08/-0.01" row is false
+
+- `0xCD2266C` disassembles to a **boolean predicate**: `... and w0, w8, #1; ret`.
+  No float is produced anywhere in the body.
+- `-0.08` and `-0.01` have **zero byte occurrences in the entire 1.26 image**. They do
+  exist in 1.21.x (`0x3172EC0`, `0x2646208`). A hook whose whole purpose is to patch
+  those constants cannot be correct against a binary that does not contain them.
+- The 1.21 table's own `Gravity = 0x9D88C20` is likewise a bool predicate
+  (has-component tests on ids `0x45/0x46/0x47/0x31/0x32`).
+- The earlier "derivation" (`movz/movk` materialisation of -0.08) is unreproducible:
+  a full scan finds **0** movz/movk-fmov sites for either constant in **either** binary.
+
+## RETRACTION 2 -- the layers do not correspond; offsets are thunks
+
+`ldr x8,[x0]; ldr x8,[x8,#0x30]; blr x8` + stack-canary check is a **generic dispatch
+thunk**. Thirteen of the 77 shipped offsets are that *identical body*:
+
+    NoHurtCam, NoCamDistortion, NoBoatRotation, NoCamSleep, PlaceCamera,
+    SlowDownTriggers, NoSlowDown, WaterSpeed, LavaSpeed, Noclip,
+    XrayCameraThird, LavaDrown, WaterDrown
+
+Thirteen hooks sharing one body means the body identifies nothing -- only the object it
+dispatches through does. So (a) cross-version diffing of shipped-offset bodies could
+never work, and (b) the "verified [B] set" from the earlier session was assembled by a
+scan that found *real method bodies* and then attached a *plausible label* from the
+registry. Those labels were never substantiated, and are withdrawn.
+
+## The registry's real structure (verified)
+
+Each entt record is 8 pointers:
+
+    slot[0] shared helper         slot[1] veneer -> slot[3] thunk (blr via [x0]+0x30)
+    slot[2] shared helper         slot[4] veneer -> slot[5] thunk (blr via [x0]+0x38)
+    slot[6] THE METHOD BODY       slot[7] end marker
+
+Confirmed on `MobMovementGravity::tickPlayerWaterGravity` (rec `0x13b42c00`):
+slots 0/2 = `0x8a7ac94`/`0x1346b978` (shared), 1/4 = veneers, 3/5 = thunks,
+**slot[6] = `0xcd4c40c`**, which contains `adr x8, #0xcd226ec` -- the lambda the
+earlier session had already tied to Gravity. 227/707 records have a classifier-positive
+`BODY` at slot[6]; the remainder are small methods that do not trip the heuristic.
+
+## BODY-LAYER table (`out/offsets_body_1.26.66.1.h`) -- 11/77
+
+| hook | body address | registry name |
+|---|---|---|
+| Gravity | `0x0CD4C40C` | `MobMovementGravity::tickPlayerWaterGravity` |
+| WaterDrown | `0x0CD4C40C` | same body (water branch) |
+| LavaDrown | `0x0CD4CC98` | `MobMovementGravity::tickLavaGravity` |
+| NoBoatRotation | `0x08A76564` | `CameraVehicleRotationLookSystem::tick` |
+| PlaceCamera | `0x11EBC844` | `CameraBlendSystem::_tick` |
+| XrayCameraThird | `0x11EB835C` | `CameraAvoidanceSystem::tickILb1` |
+| SlowDownTriggers | `0x0C2593B0` | `BlockMovementSlowdownMultiplierSystemImpl::applySlowdownOnMove` |
+| NoSlowDown | `0x0C127A8C` | `ItemUseSlowdownSystemImpl::tickItemUseSlowdown` |
+| WaterSpeed | `0x0CDC2F68` | `doWaterMoveSystem` |
+| LavaSpeed | `0x0C1353EC` | `doLavaMoveSystem` |
+| SpeedHack | `0x0C1CC8B0` | `DefaultMoveSystems::doDefaultMoveSystems` |
+
+Machine-validated: every non-zero entry is inside `.text` and disassembles as a real
+body (contains `adr`/`ldrb`/`ldrsw`, not a bare `blr` thunk). **0 violations.**
+
+The other 66 hooks stay `0`: their names are not present in the 1.26 entt registry, so
+there is no static name source. Fabricating addresses is prohibited.
+
+## Why this table is not yet shippable as-is
+
+These are body addresses, which is what was asked for, but they are **not** the same
+site class the 1.21 table used. A `ret`-patch at a body entry and a `ret`-patch at a
+dispatch thunk behave differently (the thunk still performs the canary check and the
+indirect call). Each of the 11 therefore needs a behavioural check on-device before it
+can be called verified.
