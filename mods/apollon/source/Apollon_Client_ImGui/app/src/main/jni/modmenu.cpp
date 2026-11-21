@@ -276,6 +276,11 @@ void onToggle(std::string_view moduleId, bool enabled) {
                                           "movement_lava"};
         for (const char *sid : kSpeedIds)
             if (moduleId == sid) { speedModuleOn = enabled; break; }
+        // Hex-patch features are not driven by a per-frame hook in this build
+        // (the tick hooks are unresolvable), so the toggle callback is what
+        // actually writes or restores the bytes. applyPatches() is idempotent
+        // and re-syncs every feature, so one call covers this toggle.
+        applyPatches();
         logLine("%s -> %s", kGroups[i].id, enabled ? "ON" : "OFF");
         return;
     }

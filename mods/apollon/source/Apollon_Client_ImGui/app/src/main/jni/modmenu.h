@@ -8,4 +8,10 @@
 // unreachable (libpreloader.so missing or an older launcher).
 #pragma once
 
+// Implemented in main.cpp. Re-applies every toggleable hex patch from the
+// current feature flags. Called once at startup (from hack_thread, after the
+// patch objects exist) and again on every Mod Menu toggle, because there is no
+// per-frame tick hook available in this build to poll the flags.
+void applyPatches();
+
 int ApollonRegisterModMenu();

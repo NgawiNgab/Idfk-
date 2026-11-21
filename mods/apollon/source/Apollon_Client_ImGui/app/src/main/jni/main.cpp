@@ -212,16 +212,38 @@ Java_com_mojang_minecraftpe_platforms_Platform2_resize(JNIEnv* env, jobject obj,
 // the ImGui frame was pumped by Java_..._Platform2_step, a JNI entry the game
 // never calls when LeviLaunchpad dlopen()s us, so nothing is ever drawn.
 //
-// Gating patches on "the menu is open" therefore meant "Restore() them forever":
-// inMenu is declared true in variables.h and is only cleared by
-// ClientInstance_onTick, which is offset 0 in the 1.26 table, so that hook never
-// installs and inMenu never changes. That silently disabled every feature in the
-// branch below: NoHurtCam, NoCamDistortion, NoBoatRotation, NoCamSleep,
-// PlaceCamera, SlowDownTriggers, XrayCameraThird.
-//
 // Keep this distinct from inMenu: inMenu describes the GAME's screen, this
 // describes whether WE have a UI.
 static constexpr bool kImGuiSurfaceActive = false;
+
+// ---------------------------------------------------------------------------
+//  WHY THE SIX PATCH-BACKED FEATURES DID NOTHING
+//
+//  Until 5.4.1 this function was DEFINED AND NEVER CALLED. grep for "Patches"
+//  found only the definition and the body; nothing invoked it, and it was
+//  static-initialised into the .so only because it is in the same TU.
+//
+//  The two hooks that used to call it are both unresolvable in this build:
+//      NormalTick            = 0   (offsets.h, Offsets64)
+//      ClientInstanceOnTick  = 0
+//  Both are skipped by A64HookSafe's `relOffset == 0` guard, so neither ever
+//  ran and nothing ever drove the Modify()/Restore() pairs below.
+//
+//  Meanwhile hack_thread DID create each patch:
+//      hexPatches.NoBoatRotation = MemoryPatch::createWithHex(..., "C0 03 5F D6");
+//      log("PATCH-ok NoBoatRotation ...");      // <- logged success
+//                                             // <- ...and never .Modify()
+//  createWithHex only snapshots _orig_code; the bytes are not written until
+//  Modify() is called. So the log said PATCH-ok while the game was untouched.
+//  That is why "only SpeedHack works": SpeedHack uses DobbyHook, which applies
+//  itself at install time and needs no ticker.
+//
+//  Fix: applyPatches() below is called ONCE from hack_thread after every patch
+//  object is constructed, and re-applied whenever a toggle changes. The
+//  Modify()/Restore() pairs are idempotent (an unconditional memWrite of an
+//  already-correct buffer), so re-applying is harmless.
+// ---------------------------------------------------------------------------
+void applyPatches();
 
 void Patches() {
     if (kImGuiSurfaceActive) {
@@ -362,6 +384,50 @@ void Patches() {
 		hexPatches.NoCaveVignette.Restore();
 	}
 }
+
+// Re-applies every patch Mod Menu can toggle. Safe to call repeatedly: each
+// pair unconditionally writes either the patch or the saved original bytes.
+//
+// Logs a per-feature RESULT line so a device log shows, for each one, whether
+// the patch object was constructed at all ("skip" in hack_thread) and what the
+// current module state is. If a feature is toggled on and still does nothing,
+// this log distinguishes "patch never created" from "patch created but has no
+// effect at that address" -- the two cases need completely different work.
+static void syncOne(const char *name, MemoryPatch &patch, bool on) {
+    if (!patch.isValid()) {
+        __android_log_print(ANDROID_LOG_WARN, "ApollonPatch",
+                            "RESULT %s: patch NOT CREATED in hack_thread (offset was 0 "
+                            "or hex did not match) -> toggling cannot work", name);
+        return;
+    }
+    const bool ok = on ? patch.Modify() : patch.Restore();
+    __android_log_print(ok ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR, "ApollonPatch",
+                        "RESULT %s: %s -> %s", name, on ? "ON" : "off",
+                        ok ? "applied" : "WRITE FAILED (page not writable?)");
+}
+
+void applyPatches() {
+    // Mirrors the condition of each pair in Patches() above, so the two cannot
+    // drift: same flag, same panic/LAN guards.
+    syncOne("NoHurtCam",        hexPatches.NoHurtCam,        noHurtCam && !panic);
+    syncOne("NoCamDistortion",  hexPatches.NoCamDistortion,  noCamDist && !panic);
+    syncOne("NoBoatRotation",   hexPatches.NoBoatRotation,   noBoatRotation && !panic);
+    syncOne("NoCamSleep",       hexPatches.NoCamSleep,       noCamSleep && !panic);
+    syncOne("PlaceCamera",      hexPatches.PlaceCamera,      placeCam && !panic);
+    syncOne("SlowDownTriggers", hexPatches.SlowDownTriggers, offSlowdownTrigger && !isLANGame && !panic);
+    syncOne("XrayCameraThird",  hexPatches.XrayCameraThird,  xrayCam && !panic);
+    syncOne("NoSlowDown",       hexPatches.NoSlowDown,       noSlowDown && !isLANGame && !panic);
+    syncOne("LavaDrown",        hexPatches.LavaDrown,        offDrown && !panic);
+    syncOne("WaterDrown",       hexPatches.WaterDrown,       offDrown && !panic);
+}
+
+// Called from hack_thread once, after every patch object exists. Defaults are
+// all false, so this establishes a known-clean baseline; the Mod Menu toggle
+// callback re-applies on every change after that.
+//
+// Deliberately does NOT arm the cosmetic/fullbright/font/blur patches: those
+// have no Mod Menu entry, and switching them on unprompted would be a silent
+// behaviour change. Only the ten rows a user can actually reach are synced.
 
 #include "menu.h"
 
@@ -1118,21 +1184,30 @@ void *LevelRendererPlayer_setupFog(void *a1, void *a2, void *a3) {
 }
 
 void (*old_SpeedHack)(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6, void *a7, void *a8, void *a9, void *a10, void *a11, void *a12, void *a13);
-// SpeedHack repeats the original doDefaultMoveSystems once per extra "speed"
-// unit; the trampoline keeps one real call at the end.
+// SpeedHack: extra move-system passes per tick.
 //
-// It had NO check of the module toggle, so it acted with the module switched
-// off. It also ran `speedValue - 1` times with speedValue defaulting to 1, i.e.
-// zero times -- a pure pass-through -- yet movement still changed. That is
-// expected now that we hook a method BODY (record slot[6]) instead of the 1.21
-// build's dispatch THUNK: re-entering a body restarts its work mid-tick, which
-// is why the effect only showed up after a jump (the frame after a jump is where
-// the re-entry lands). A thunk re-ran the whole system cleanly.
+// HISTORY -- why this kept needing a jump:
+//   It used to repeat the hooked function `speedValue - 1` times and then call
+//   the trampoline again. But 0x0C1CC8B0 is a method BODY (record slot[6]), not
+//   the dispatch THUNK the 1.21 offset named. Re-entering a body restarts work
+//   the outer invocation has already half-done, so the duplicate landed on the
+//   wrong frame and only became visible after a jump reseeded the movement
+//   state. The 1.21 build hooked a thunk, where a repeat call re-ran the whole
+//   system cleanly -- that is the semantic difference, and it cannot be fixed
+//   by tuning the loop.
 //
-// So: require the toggle AND a multiplier above 1, making the result
-// predictable instead of dependent on jump timing.
+// WHAT IT DOES NOW:
+//   The loop stays enabled because it demonstrably produces movement, and
+//   switching it off would take away the only feature working on device. The
+//   jump dependency is documented as a known limitation, not papered over.
+//
+//   The real fix is to hook the THUNK that dispatches into 0x0C1CC8B0 (1.21
+//   named it "doDefaultMoveSystems 2") instead of the body. That is an offset
+//   recovery task, and it needs the 1.26 binary to do safely.
+static constexpr bool kSpeedHackLoopEnabled = true;
+
 void SpeedHack(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6, void *a7, void *a8, void *a9, void *a10, void *a11, void *a12, void *a13) {
-    const bool enabled = speedModuleOn && !isLANGame && !panic && speedValue > 1;
+    const bool enabled = kSpeedHackLoopEnabled && speedModuleOn && !isLANGame && !panic && speedValue > 1;
     if (enabled) {
         for (int i = 0; i < speedValue - 1; ++i) {
             old_SpeedHack(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13);
@@ -1563,6 +1638,11 @@ void *hack_thread(void *) {
 	__android_log_print(hexPatches.NoBlur1.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoBlur1.isValid()?"ok":"skip", "NoBlur1", (unsigned long)Offsets64::NoBlur1);
 	hexPatches.NoBlur2 = MemoryPatch::createWithHex(MineLib, Offsets64::NoBlur2, "C0 03 5F D6");
 	__android_log_print(hexPatches.NoBlur2.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoBlur2.isValid()?"ok":"skip", "NoBlur2", (unsigned long)Offsets64::NoBlur2);
+
+	// Every patch object above now exists. This is the call that was MISSING:
+	// Patches() had no caller anywhere, so no Modify() ever ran and the six
+	// patch-backed Mod Menu features did nothing regardless of their toggle.
+	applyPatches();
 
 #elif defined(__ARM_ARCH_7A__)
 
