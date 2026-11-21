@@ -113,31 +113,26 @@ for f in \
 done
 compile_c Substrate/hde64.c
 
-echo "=== building libpreloader.so import stub ==="
-# The mod calls pl::modmenu to register its menu. Levi ships libpreloader.so in
-# the APK and loads it only AFTER dlopen()ing us, so unless we declare it as a
-# DT_NEEDED dependency, BIND_NOW aborts the load with
-#   dlopen failed: cannot locate symbol "_ZN2pl7modmenu14registerModuleE..."
-# To emit DT_NEEDED we must link against something named libpreloader.so, so we
-# generate a stub carrying that SONAME. It is a link-time artifact ONLY and is
-# never shipped in the .levipack -- the launcher's real library resolves the
-# symbols at runtime.
+# NOTE: we deliberately do NOT link against libpreloader.so.
 #
-# The symbol list is taken from the referenced set, so if modmenu.cpp stops
-# calling into pl::modmenu the stub is skipped and the dependency disappears
-# instead of lingering as a phantom requirement.
-PRELOADER_STUB="$WS/stublibs/preloader"
-mkdir -p "$PRELOADER_STUB"
-ZIG="$ZIG" python3 "$AP/build/gen_preloader_stub.py_from_objs.py" \
-    "$OBJ" "$PRELOADER_STUB"
+# An earlier revision declared it as DT_NEEDED using a generated stub. That
+# makes the launcher's library a hard load-time requirement: if the installed
+# libpreloader.so exports a different symbol set than the SDK we compiled
+# against, dlopen() of OUR library fails with "cannot locate symbol
+# _ZN2pl7modmenu14registerModule..." and the mod does not load at all -- no
+# hooks, no modules, no log. modmenu.cpp now resolves the menu API with
+# dlsym(RTLD_DEFAULT) at runtime instead, so a missing API degrades to
+# "menu unavailable, hooks still work" and is logged.
+#
+# The SDK headers are still needed to compile against, hence LEVI_INC.
 
 echo "=== linking libapollon_imgu.so ==="
 $ZIG c++ -target aarch64-linux-android -shared -fPIC -O2 -nostdlib -nostdinc \
   -o "$OUT/libapollon_imgu.so" "$OBJ"/*.o "$DOBBY" "$CRT_A64" \
   -Wl,--gc-sections -Wl,--strip-all \
   -Wl,-soname,libapollon_imgu.so \
-  -L"$STUBS" -L"$PRELOADER_STUB" -Wl,--no-as-needed \
-  $([ -f "$PRELOADER_STUB/libpreloader.so" ] && echo -lpreloader) -lGLESv2 -lEGL -llog -landroid -lz -ldl -lm -lc++_shared \
+  -L"$STUBS" -Wl,--no-as-needed \
+  -lGLESv2 -lEGL -llog -landroid -lz -ldl -lm -lc++_shared \
   -Wl,-z,max-page-size=16384
 
 echo "=== done: $OUT/libapollon_imgu.so ==="

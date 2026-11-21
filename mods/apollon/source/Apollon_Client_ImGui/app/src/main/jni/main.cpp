@@ -1763,17 +1763,6 @@ void ApollonNativeMod_Start() {
     if (cheatThread) return;                    // already running
     pthread_create(&cheatThread, NULL, hack_thread, NULL);
 
-    // Register the feature toggles with the launcher's Mod Menu. This is the
-    // ONLY user interface this build has: the old ImGui surface was pumped by
-    // Java_com_mojang_..._Platform2_step, which the game never calls when the
-    // mod is dlopen()ed by LeviLaunchroid, so no window ever appeared.
-    // Registration is independent of hook installation, so the menu exists even
-    // if every offset is still 0.
-    const int registered = ApollonRegisterModMenu();
-    __android_log_print(registered > 0 ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR,
-                        "ApollonMenu",
-                        "registered %d modules (0 = launcher menu API unreachable)",
-                        registered);
 }
 
 extern "C" __attribute__((visibility("default")))
@@ -1788,6 +1777,21 @@ void ApollonNativeMod_Stop() {
 // layout (instance + four bool(void*, void*) slots) without pulling in the
 // preloader headers or std::filesystem, which keeps this .so buildable with
 // the existing bionic sysroot.
+//
+// PHASE RULES (learned from preloader-android's source, not guessed):
+//
+//  * ONLY `load` runs inside pl::runtime::ScopedModMenuOwner, which sets the
+//    "owning mod" that registerModule() checks against. Registering a module
+//    from enable() or from a background thread leaves that owner empty and the
+//    launcher logs "Rejected Mod Menu module ... does not match owning
+//    lifecycle mod". So the Mod Menu registration MUST happen here in `load`.
+//
+//  * `load` owns no game hooks. Hooks need libminecraftpe.so to be present and
+//    are installed on the cheat thread, which `enable` starts. Keeping them
+//    separate means a failed hook can never stop the menu from appearing.
+//
+//  * Returning false from `load` makes the launcher drop the mod entirely, so
+//    the menu registration result is logged but never fatal.
 extern "C" __attribute__((visibility("default")))
 void *PLGetModRegistration() {
     struct Reg {
@@ -1799,9 +1803,20 @@ void *PLGetModRegistration() {
     };
     static Reg reg = {
         nullptr,
+        // load: runs under ScopedModMenuOwner -> this is where the menu registers.
+        +[](void *, void *) -> bool {
+            const int n = ApollonRegisterModMenu();
+            __android_log_print(n > 0 ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR,
+                                "ApollonMenu",
+                                "load phase: registered %d modules "
+                                "(0 = menu API unreachable or all rejected)", n);
+            return true;   // never fail the load over the menu
+        },
+        // enable: start hooks.
         +[](void *, void *) -> bool { ApollonNativeMod_Start(); return true; },
-        +[](void *, void *) -> bool { ApollonNativeMod_Start(); return true; },
+        // disable: leave hooks installed but stop the thread.
         +[](void *, void *) -> bool { return true; },
+        // unload: stop.
         +[](void *, void *) -> bool { ApollonNativeMod_Stop();  return true; },
     };
     return &reg;

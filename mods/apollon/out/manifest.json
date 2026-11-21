@@ -2,10 +2,10 @@
   "type": "preload-native",
   "name": "Apollon ImGui",
   "author": "Apollon / ZEFF · reborn",
-  "version": "5.2.0-menu1",
+  "version": "5.3.0-menu2",
   "entry": "libapollon_imgu.so",
   "minecraft_versions": [
     "1.26.66.1"
   ],
-  "description": "Apollon for Minecraft Bedrock 1.26.66.1 (arm64-v8a). UI is now the LeviLaunchpad Mod Menu (no ImGui): the old ImGui surface could never appear because its only frame pump was a JNI entry point the game never calls. Features register as Mod Menu modules. 11/77 offsets are real recovered bodies; the rest are 0 and inert."
+  "description": "Apollon for MC Bedrock 1.26.66.1 (arm64-v8a). Levi Mod Menu build, revised. Menu API is now resolved at RUNTIME (dlsym) so a launcher with a different symbol set can no longer prevent the mod from loading. Modules register during the 'load' lifecycle phase, which is the only phase the launcher wraps in its owning-mod scope (registering later was being silently rejected), and mod_id is left empty so it matches the launcher's install-directory id instead of a hardcoded one."
 }

@@ -25,6 +25,8 @@
 
 #include <pl/ModMenu.hpp>
 
+#include <dlfcn.h>
+
 #include <android/log.h>
 #include <cstdarg>
 #include <string>
@@ -52,7 +54,61 @@ extern float gravityValue;
 namespace {
 
 constexpr const char *kTag = "ApollonMenu";
-constexpr const char *kModId = "apollon";
+// Do NOT hardcode a mod id. preloader-android uses the INSTALL DIRECTORY name
+// as the mod id (ModManifest.cpp: `.id = modDirectory.filename().string()`), and
+// RegisterCppModule REJECTS any module whose declared mod_id differs from the
+// owning mod:
+//
+//   "Rejected Mod Menu module {}: declared mod_id {} does not match owning
+//    lifecycle mod {}"
+//
+// Since we cannot know the directory the user extracted us into, we leave
+// mod_id EMPTY. The launcher then fills it in from the current owner. This was
+// a silent rejection of all 10 modules.
+constexpr const char *kModId = "";
+
+// ---------------------------------------------------------------------------
+//  Runtime symbol resolution
+//
+//  We must NOT link libpreloader.so as a hard DT_NEEDED dependency. If the
+//  installed launcher exports a different set of symbols than the SDK this was
+//  built against, dlopen() of OUR library fails outright with
+//
+//      cannot locate symbol "_ZN2pl7modmenu14registerModuleE..."
+//
+//  and the mod then loads not-at-all: no hooks, no modules, no log. That is
+//  indistinguishable from "the mod is broken". Resolving at runtime instead
+//  means a missing/older menu API degrades to "menu unavailable, hooks still
+//  work" and we can say so in logcat.
+//
+//  The mangled name below contains no libc++ namespace (ModuleInfo is a pl::
+//  type), so it is ABI-stable regardless of the launcher's STL config.
+// ---------------------------------------------------------------------------
+using RegisterModuleFn = bool (*)(const pl::modmenu::ModuleInfo &);
+
+RegisterModuleFn resolveRegisterModule() {
+    static const char *kSym =
+        "_ZN2pl7modmenu14registerModuleERKNS0_10ModuleInfoE";
+
+    // Preferred: the launcher already loaded libpreloader.so with RTLD_GLOBAL.
+    if (void *p = dlsym(RTLD_DEFAULT, kSym)) {
+        return reinterpret_cast<RegisterModuleFn>(p);
+    }
+    // Fallback: locate the already-mapped library explicitly and search it.
+    if (void *h = dlopen("libpreloader.so", RTLD_NOW | RTLD_NOLOAD)) {
+        if (void *p = dlsym(h, kSym)) {
+            return reinterpret_cast<RegisterModuleFn>(p);
+        }
+        __android_log_print(ANDROID_LOG_ERROR, "ApollonMenu",
+                            "libpreloader.so is mapped but does not export %s "
+                            "-- launcher menu API is older than this mod", kSym);
+        return nullptr;
+    }
+    __android_log_print(ANDROID_LOG_ERROR, "ApollonMenu",
+                        "libpreloader.so not loaded in this process (%s); "
+                        "Mod Menu unavailable", dlerror() ? dlerror() : "?");
+    return nullptr;
+}
 
 void logLine(const char *fmt, ...) {
     va_list ap;
@@ -201,6 +257,9 @@ const Group kGroups[] = {
 
 constexpr int kGroupCount = sizeof(kGroups) / sizeof(kGroups[0]);
 
+// Set once at registration time by ApollonRegisterModMenu().
+RegisterModuleFn g_registerModule = nullptr;
+
 void onToggle(std::string_view moduleId, bool enabled) {
     for (int i = 0; i < kGroupCount; ++i) {
         if (moduleId != kGroups[i].id) continue;
@@ -233,33 +292,63 @@ void onConfigChanged(std::string_view moduleId, std::string_view key,
 }
 
 bool registerOne(const Group &g) {
-    pl::modmenu::ModuleBuilder b(g.id, g.label);
-    b.modId(kModId).description(g.hint ? g.hint : "").defaultEnabled(g.defaultOn);
+    // Build the ModuleInfo directly rather than via ModuleBuilder: we resolve
+    // registerModule at runtime, so we need the struct itself, not a builder
+    // that calls the symbol for us.
+    pl::modmenu::ModuleInfo info;
+    info.moduleId    = g.id;
+    info.displayName = g.label;
+    info.description = g.hint ? g.hint : "";
+    info.modId       = kModId;        // empty -> launcher fills own id
+    info.defaultEnabled  = g.defaultOn;
+    info.hideInHudEditor = false;
+    info.onToggle        = &onToggle;
+    info.onConfigChanged = &onConfigChanged;
+
+    auto addConfig = [&info](const char *key, const char *display,
+                             pl::modmenu::ConfigType type,
+                             const std::string &def,
+                             const std::string &lo = {},
+                             const std::string &hi = {}) {
+        pl::modmenu::ConfigEntry e;
+        e.key = key;
+        e.displayName = display;
+        e.type = type;
+        e.defaultValue = def;
+        e.minValue = lo;
+        e.maxValue = hi;
+        info.configs.push_back(std::move(e));
+    };
 
     if (g.flag)
-        b.config(g.flagKey, "Enabled", pl::modmenu::ConfigType::Toggle,
-                 *g.flag ? "true" : "false");
+        addConfig(g.flagKey, "Enabled", pl::modmenu::ConfigType::Toggle,
+                  *g.flag ? "true" : "false");
 
-    if (g.ivalue) {
-        b.config(g.ivalKey, g.label, pl::modmenu::ConfigType::SliderInt,
-                 std::to_string(*g.ivalue), std::to_string(g.lo),
-                 std::to_string(g.hi));
-    }
+    if (g.ivalue)
+        addConfig(g.ivalKey, g.label, pl::modmenu::ConfigType::SliderInt,
+                  std::to_string(*g.ivalue), std::to_string(g.lo),
+                  std::to_string(g.hi));
 
-    if (g.fvalue) {
-        b.config(g.fvalKey, g.label, pl::modmenu::ConfigType::SliderFloat,
-                 std::to_string(*g.fvalue), g.flo, g.fhi);
-    }
+    if (g.fvalue)
+        addConfig(g.fvalKey, g.label, pl::modmenu::ConfigType::SliderFloat,
+                  std::to_string(*g.fvalue), g.flo ? g.flo : "",
+                  g.fhi ? g.fhi : "");
 
-    b.onToggle(&onToggle).onConfigChanged(&onConfigChanged);
-    const bool ok = b.registerModule();
-    logLine("register %-16s %s", g.id, ok ? "ok" : "REJECTED");
+    const bool ok = g_registerModule(info);
+    logLine("register %-16s %s (configs=%zu)", g.id, ok ? "ok" : "REJECTED",
+            info.configs.size());
     return ok;
 }
 
 }  // namespace
 
 int ApollonRegisterModMenu() {
+    g_registerModule = resolveRegisterModule();
+    if (!g_registerModule) {
+        logLine("menu API unavailable -- skipping registration");
+        return 0;
+    }
+
     // Push current globals into the Levi config store so the menu opens showing
     // the values the mod is actually running with (they may have come from the
     // legacy /xal/config.json).
