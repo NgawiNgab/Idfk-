@@ -65,3 +65,60 @@ independent anchor for each class's vtable. Fabricating addresses is prohibited.
   modifier. The "`return 0.42`" concept is a hook, not literally a constant store.
 - **Cross-version diffing**: needs a 1.21.x `libminecraftpe.so` as anchor. None on disk
   and it is not self-generatable.
+
+---
+
+## JumpHack investigation (this round)
+
+`JumpHack` is *not* a void system tick. Its Apollon signature ignores all six args
+and **returns a float**:
+
+    float JumpHack(void*,void*,void*,void*,void*,void*) { return 0.42 (+ (jumpValue-1)/10); }
+
+So the target must be a float-returning getter, recoverable only by exact instruction
+shape. All three encodings clang uses for `return <const>;` were scanned
+(`re/getter_scan.py`):
+
+| encoding | result |
+|---|---|
+| `fmov s0,#imm8 ; ret` | 1 hit (mid-function) |
+| `ldr s0,[pc,#off] ; ret` (literal pool) | 0 |
+| `movz/movk wN ; fmov s0,wN ; ret` | the real ones, below |
+
+**Two genuine `return 0.42f` bodies** exist:
+`0xc3d75dc` — `movz w8,#0x0a3d; movk w8,#0x3ed7,lsl#16; fmov s0,w8; ret`
+`0xcd28bb0` — same shape, inside a null-checking wrapper at `0xcd28ba0`.
+
+**Neither can be verified as JumpHack statically.** Evidence:
+
+- `bl` callers: **0** for both (and 0 for the wrapper).
+- `R_AARCH64_RELATIVE` pointer slots holding them: **0** (not in any vtable).
+- `adrp+add` code references: **0**.
+
+They are only ever branched to from inside `0xcd28ba0`'s own tail
+(`0xcd28ba4: b 0xc3d75c4`). A function with no caller, no vtable slot and no address
+take is unreachable dead code as far as the shipped binary is concerned, so pinning
+0.42 to `JumpHack` would be a guess. All other 0.42 sites are `fmov s1,` / `fmov s2,`
+comparison constants, not returns.
+
+**Conclusion:** `JumpHack` stays `0` pending the cross-version diff (below).
+
+## Cross-version diff harness — built and validated
+
+`re/diff_match.py` + `re/diff_selftest.py`.
+
+- Candidate entries = `R_AARCH64_RELATIVE` addends inside `.text` **plus** every
+  `stp x29,x30,[sp,#-N]!` and `sub sp,sp,#N` prologue.
+- Probe = 14-instruction hash of `(mnemonic, normalised operands)`, where branch
+  targets become opaque `TGT` and data immediates keep their value (so `cmp #1` never
+  matches `cmp #7`). This makes the hash survive address shifts.
+- Full-body signature similarity disambiguates ties (e.g. 777 candidates).
+- `entry_of()` recovers the enclosing function, so interior hook offsets are handled by
+  carrying `delta = old_offset - old_entry` across to `new_entry + delta`.
+
+**Known-answer validation: 12/12.** Fed the shipped 1.21.x addresses, the harness
+returns exactly the verified 1.26.66.1 addresses for all twelve entries including the
+three with non-zero deltas (`NoCamDistortion`, `LavaSpeed`, `SpeedHack`) and the
+frameless `SlowDownTriggers` (`sub sp,#0x90` instead of `stp`).
+
+**Blocked on input:** a 1.21.x `libminecraftpe.so` to use as the far side of the diff.
