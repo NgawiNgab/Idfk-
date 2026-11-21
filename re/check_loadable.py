@@ -75,6 +75,14 @@ def main():
     """.split())
     # NDK platform prefixes: libandroid.so (always DT_NEEDED) exports the
     # AInputQueue/AKeyEvent/AMotionEvent/ANativeWindow/AAsset/ALooper families.
+    # LeviLaunchpad ships libpreloader.so in the APK and the launcher loads it
+    # (the mod declares it DT_NEEDED). Its pl::* namespace is therefore a valid
+    # provider at runtime, exactly like libc++_shared for std::*.
+    # NOTE: it is loaded by the LAUNCHER, not by the game, so a mod that is
+    # dropped into a plain Minecraft install with no LeviLaunchpad will still
+    # fail here -- which is correct behaviour, not a false positive.
+    LAUNCHER_PREFIX = ('_ZN2pl', '_ZNK2pl', '_ZN3pl', '_ZNK3pl',
+                       '_ZTIN2pl', '_ZTSN2pl', '_ZTVN2pl', '_ZTIN3pl', '_ZTSN3pl')
     PLATFORM_PREFIX = ('__','egl','gl','android','ALooper','AInput','ANative','AAsset',
                        'AKeyEvent','AMotionEvent','AConfiguration','ASensor',
                        'AStorageManager','APerformanceHint','AHardwareBuffer',
@@ -109,6 +117,8 @@ def main():
         if n.startswith('_ZNKSt13runtime_error') or n.startswith('_ZNKSt11logic_error'): continue
         if n.startswith('_Unwind_'): continue
         if n.startswith(PLATFORM_PREFIX): continue
+        if n.startswith(LAUNCHER_PREFIX): continue
+        if n == 'PLGetModRegistration': continue
         missing.append(n)
     print(f"mod            : {mod}")
     print(f"game exports   : {len(exp)}")

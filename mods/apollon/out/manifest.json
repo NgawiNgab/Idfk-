@@ -2,10 +2,10 @@
   "type": "preload-native",
   "name": "Apollon ImGui",
   "author": "Apollon / ZEFF · reborn",
-  "version": "5.1.0-test1",
+  "version": "5.2.0-menu1",
   "entry": "libapollon_imgu.so",
   "minecraft_versions": [
     "1.26.66.1"
   ],
-  "description": "Apollon Client reborn for Minecraft Bedrock 1.26.66.1 (arm64-v8a). TEST BUILD: body-layer offsets. 11/77 hooks carry REAL method bodies recovered by name from the 1.26 entt registry (record slot[6], validated to be non-trivial .text bodies). All other hooks are 0 = inert (skipped, never patched). Check logcat tag 'ApollonOffset' for per-hook PASS/FAIL/HOOKED/PATCH lines."
+  "description": "Apollon for Minecraft Bedrock 1.26.66.1 (arm64-v8a). UI is now the LeviLaunchpad Mod Menu (no ImGui): the old ImGui surface could never appear because its only frame pump was a JNI entry point the game never calls. Features register as Mod Menu modules. 11/77 offsets are real recovered bodies; the rest are 0 and inert."
 }

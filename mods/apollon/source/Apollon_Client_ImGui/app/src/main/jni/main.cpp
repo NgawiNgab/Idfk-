@@ -1,5 +1,6 @@
 #include <jni.h>
 #include <android/native_activity.h>
+#include <android/log.h>
 #include <errno.h>
 
 #include <string.h>
@@ -1306,19 +1307,80 @@ void BaseActorRenderer_renderText(void *a1, void *a2, void *a3, void *a4, void *
 // writes a trampoline over the ELF header of libminecraftpe.so -> SIGSEGV.
 // Skipping leaves the feature inert instead of crashing the client.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Hook-site verification for the 1.26.66.1 body-layer table.
+//
+// Each recovered offset must land on real, executable AArch64 code. We check:
+//   * the page is mapped r-x
+//   * the first instruction decodes to a plausible function entry
+//     (stp / sub sp / str / mov) -- a wrong offset almost always lands on data
+//     or mid-instruction garbage
+// Reports PASS/FAIL per hook to logcat under tag "ApollonOffset" so the device
+// can tell us which entries actually resolved.
+// ---------------------------------------------------------------------------
+// Executable-range lookup straight from /proc/self/maps, so we never read a
+// non-executable page (segfault) while validating an offset.
+static bool ApollonIsExec(uintptr_t addr) {
+    FILE *fp = fopen("/proc/self/maps", "rt");
+    if (!fp) return false;
+    char line[512];
+    bool ok = false;
+    while (fgets(line, sizeof(line), fp)) {
+        unsigned long lo = 0, hi = 0; char perms[8] = {0};
+        if (sscanf(line, "%lx-%lx %7s", &lo, &hi, perms) != 3) continue;
+        if (addr >= lo && addr < hi) { ok = (perms[2] == 'x'); break; }
+    }
+    fclose(fp);
+    return ok;
+}
+
+// A real function entry. AArch64 entries start with a frame setup, a stack
+// adjustment, a store, or a register move. Garbage / data pages do not.
+static bool ApollonVerifyOne(uintptr_t relOffset, const char *what) {
+    uintptr_t addr = getAbsoluteAddress(MineLib, relOffset);
+    if (!addr) return false;
+    if (!ApollonIsExec(addr)) {
+        __android_log_print(ANDROID_LOG_ERROR, "ApollonOffset",
+                            "NOT-EXEC %s @ 0x%lx", what ? what : "?", (unsigned long)relOffset);
+        return false;
+    }
+    uint32_t w = *(volatile uint32_t *)addr;
+    // STP/STR/LDR/SUB/ADD/MOV/MOVZ/MOVI families that legitimately open a function
+    bool stp   = (w & 0xFFC00000u) == 0xA9800000u;   // stp ..., [sp, #-N]!  (pre-index)
+    bool stp2  = (w & 0xFF800000u) == 0xA9000000u;   // stp (offset form)
+    bool sub   = (w & 0xFFC003FFu) == 0xD10003FFu;   // sub sp, sp, #imm
+    bool str   = (w & 0xFFC00000u) == 0xB9000000u;   // str (32-bit)
+    bool strx  = (w & 0xFFC00000u) == 0xF9000000u;   // str (64-bit)
+    bool mov   = (w & 0xFFE0FFE0u) == 0x2A0003E0u;   // mov wD, wS
+    bool movx  = (w & 0xFFE0FFE0u) == 0xAA0003E0u;   // mov xD, xS
+    bool movz  = (w & 0xFF800000u) == 0x52800000u;   // movz wD
+    bool movi  = (w & 0xFFF8FC00u) == 0x0F000400u;   // movi d/v
+    bool ldr   = (w & 0xFFC00000u) == 0xF9400000u;   // ldr x
+    bool ldrb  = (w & 0xFFC00000u) == 0x39400000u;   // ldrb
+    bool ok = stp || stp2 || sub || str || strx || mov || movx || movz || movi || ldr || ldrb;
+    __android_log_print(ok ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR, "ApollonOffset",
+                        "%s %s @ 0x%lx  first=%08x",
+                        ok ? "PASS" : "FAIL", what ? what : "?",
+                        (unsigned long)relOffset, w);
+    return ok;
+}
+
 static inline void A64HookSafe(uintptr_t relOffset, void *replace, void **orig,
                                const char *what = nullptr) {
     if (relOffset == 0) {
-#if defined(APOLLON_LOG_SKIPPED_HOOKS)
-        if (what) __android_log_print(ANDROID_LOG_WARN, "Apollon",
-                                      "hook skipped (offset 0): %s", what);
-#else
-        (void)what;
-#endif
+        if (orig) *orig = nullptr;
+        return;
+    }
+    if (!ApollonVerifyOne(relOffset, what)) {
+        __android_log_print(ANDROID_LOG_ERROR, "ApollonOffset",
+                            "REFUSED %s @ %p : not a plausible function entry",
+                            what ? what : "?", (void *)relOffset);
         if (orig) *orig = nullptr;
         return;
     }
     A64HookFunction((void *)getAbsoluteAddress(MineLib, relOffset), replace, orig);
+    __android_log_print(ANDROID_LOG_INFO, "ApollonOffset",
+                        "HOOKED %s @ 0x%lx", what ? what : "?", (unsigned long)relOffset);
 }
 
 pthread_t cheatThread;
@@ -1337,101 +1399,140 @@ void *hack_thread(void *) {
 
     DobbyHook(reinterpret_cast<void*>((const void*(*)(...))dlsym(handle, OBFUSCATE("Java_com_mojang_minecraftpe_MainActivity_nativeKeyHandler"))), reinterpret_cast<void*>(new_Java_com_mojang_minecraftpe_MainActivity_nativeKeyHandler), reinterpret_cast<void**>(&old_Java_com_mojang_minecraftpe_MainActivity_nativeKeyHandler));
 	hexPatches.NativeKeyHandler = MemoryPatch::createWithHex(MineLib, Offsets64::NativeKeyHandler, "C0 03 5F D6");
+	__android_log_print(hexPatches.NativeKeyHandler.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NativeKeyHandler.isValid()?"ok":"skip", "NativeKeyHandler", (unsigned long)Offsets64::NativeKeyHandler);
 	hexPatches.NativeKeyHandler.Modify();
 	
-	A64HookSafe(Offsets64::NoNametags, (void *) BaseActorRenderer_renderText, (void **) &old_BaseActorRenderer_renderText);
+	A64HookSafe(Offsets64::NoNametags,  (void *) BaseActorRenderer_renderText, (void **) &old_BaseActorRenderer_renderText, "NoNametags");
 	
 	hexPatches.NoCaveVignette = MemoryPatch::createWithHex(MineLib, Offsets64::VignetteRenderer, "C0 03 5F D6");
+	__android_log_print(hexPatches.NoCaveVignette.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoCaveVignette.isValid()?"ok":"skip", "VignetteRenderer", (unsigned long)Offsets64::VignetteRenderer);
 	
 	hexPatches.AntiKnockBack = MemoryPatch::createWithHex(MineLib, Offsets64::LerpMotion, "C0 03 5F D6");
+	__android_log_print(hexPatches.AntiKnockBack.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.AntiKnockBack.isValid()?"ok":"skip", "LerpMotion", (unsigned long)Offsets64::LerpMotion);
 	
-	hexPatches.FullBright = MemoryPatch::createWithHex(MineLib, Offsets64::FullBright, "88 56 A8 52 00 01 27 1E C0 03 5F D6");//return 999.0f
-	A64HookSafe(Offsets64::Block_getRenderLayer, (void *) Block_getRenderLayer, (void **) &old_Block_getRenderLayer);
+	hexPatches.FullBright = MemoryPatch::createWithHex(MineLib, Offsets64::FullBright, "88 56 A8 52 00 01 27 1E C0 03 5F D6");
+	__android_log_print(hexPatches.FullBright.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.FullBright.isValid()?"ok":"skip", "FullBright", (unsigned long)Offsets64::FullBright);//return 999.0f
+	A64HookSafe(Offsets64::Block_getRenderLayer,  (void *) Block_getRenderLayer, (void **) &old_Block_getRenderLayer, "Block_getRenderLayer");
 	
-    A64HookSafe(Offsets64::ClientInstanceOnTick, (void *) ClientInstance_onTick, (void **) &old_ClientInstance_onTick);
+    A64HookSafe(Offsets64::ClientInstanceOnTick,  (void *) ClientInstance_onTick, (void **) &old_ClientInstance_onTick, "ClientInstanceOnTick");
 	
-    A64HookSafe(Offsets64::Subtitle, (void *) TitleMessage_setSubtitle, (void **) &old_TitleMessage_setSubtitle);
+    A64HookSafe(Offsets64::Subtitle,  (void *) TitleMessage_setSubtitle, (void **) &old_TitleMessage_setSubtitle, "Subtitle");
 	
-    A64HookSafe(Offsets64::ShowPaperdoll, (void *) HudPlayerRenderer_update, (void **) &old_HudPlayerRenderer_update);
+    A64HookSafe(Offsets64::ShowPaperdoll,  (void *) HudPlayerRenderer_update, (void **) &old_HudPlayerRenderer_update, "ShowPaperdoll");
 	
-    A64HookSafe(Offsets64::SetupFog, (void *) LevelRendererPlayer_setupFog, (void **) &old_LevelRendererPlayer_setupFog);
+    A64HookSafe(Offsets64::SetupFog,  (void *) LevelRendererPlayer_setupFog, (void **) &old_LevelRendererPlayer_setupFog, "SetupFog");
 	
-    A64HookSafe(Offsets64::GetMaxPlayers, (void *) AppPlatform_getMaxPlayers, (void **) &old_AppPlatform_getMaxPlayers);
+    A64HookSafe(Offsets64::GetMaxPlayers,  (void *) AppPlatform_getMaxPlayers, (void **) &old_AppPlatform_getMaxPlayers, "GetMaxPlayers");
 	
-    A64HookSafe(Offsets64::UnlockMarket, (void *) Entitlement_UnlockMarket, (void **) &old_Entitlement_UnlockMarket);
+    A64HookSafe(Offsets64::UnlockMarket,  (void *) Entitlement_UnlockMarket, (void **) &old_Entitlement_UnlockMarket, "UnlockMarket");
 	
-	A64HookSafe(Offsets64::InMainMenu, (void *) InMainMenu, (void **) &old_InMainMenu);
-	A64HookSafe(Offsets64::InLanGame1, (void *) InLanGame1, (void **) &old_InLanGame1);
-	A64HookSafe(Offsets64::InLanGame2, (void *) InLanGame2, (void **) &old_InLanGame2);
+	A64HookSafe(Offsets64::InMainMenu,  (void *) InMainMenu, (void **) &old_InMainMenu, "InMainMenu");
+	A64HookSafe(Offsets64::InLanGame1,  (void *) InLanGame1, (void **) &old_InLanGame1, "InLanGame1");
+	A64HookSafe(Offsets64::InLanGame2,  (void *) InLanGame2, (void **) &old_InLanGame2, "InLanGame2");
 	
-	A64HookSafe(Offsets64::Fov, (void *) PlayerFov, (void **) &old_PlayerFov);
+	A64HookSafe(Offsets64::Fov,  (void *) PlayerFov, (void **) &old_PlayerFov, "Fov");
 
-	A64HookSafe(Offsets64::FogState, (void *) LevelRendererCamera_FogState, (void **) &old_LevelRendererCamera_FogState);
+	A64HookSafe(Offsets64::FogState,  (void *) LevelRendererCamera_FogState, (void **) &old_LevelRendererCamera_FogState, "FogState");
 
-	hexPatches.Font0 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "00 00 00 3F");//0
-	hexPatches.Font1 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "9A 99 19 3F");//1
-	hexPatches.Font2 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "33 33 33 3F");//2
-	hexPatches.Font3 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "CD CC 4C 3F");//3
-	hexPatches.Font4 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "66 66 66 3F");//4
-	hexPatches.Font5 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "00 00 80 3F");//5
-	hexPatches.Font6 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "CD CC 8C 3F");//6
-	hexPatches.Font7 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "9A 99 99 3F");//7
-	hexPatches.Font8 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "66 66 A6 3F");//8
-	hexPatches.Font9 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "33 33 B3 3F");//9
-	hexPatches.Font10 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "00 00 C0 3F");//10
+	hexPatches.Font0 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "00 00 00 3F");
+	__android_log_print(hexPatches.Font0.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font0.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//0
+	hexPatches.Font1 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "9A 99 19 3F");
+	__android_log_print(hexPatches.Font1.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font1.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//1
+	hexPatches.Font2 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "33 33 33 3F");
+	__android_log_print(hexPatches.Font2.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font2.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//2
+	hexPatches.Font3 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "CD CC 4C 3F");
+	__android_log_print(hexPatches.Font3.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font3.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//3
+	hexPatches.Font4 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "66 66 66 3F");
+	__android_log_print(hexPatches.Font4.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font4.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//4
+	hexPatches.Font5 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "00 00 80 3F");
+	__android_log_print(hexPatches.Font5.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font5.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//5
+	hexPatches.Font6 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "CD CC 8C 3F");
+	__android_log_print(hexPatches.Font6.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font6.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//6
+	hexPatches.Font7 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "9A 99 99 3F");
+	__android_log_print(hexPatches.Font7.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font7.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//7
+	hexPatches.Font8 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "66 66 A6 3F");
+	__android_log_print(hexPatches.Font8.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font8.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//8
+	hexPatches.Font9 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "33 33 B3 3F");
+	__android_log_print(hexPatches.Font9.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font9.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//9
+	hexPatches.Font10 = MemoryPatch::createWithHex(MineLib, Offsets64::Font, "00 00 C0 3F");
+	__android_log_print(hexPatches.Font10.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Font10.isValid()?"ok":"skip", "Font", (unsigned long)Offsets64::Font);//10
 	
-	A64HookSafe(Offsets64::FastDrop, (void *) DropItemTime, (void **) &old_DropItemTime);
+	A64HookSafe(Offsets64::FastDrop,  (void *) DropItemTime, (void **) &old_DropItemTime, "FastDrop");
 	
 	hexPatches.NoHurtCam = MemoryPatch::createWithHex(MineLib, Offsets64::NoHurtCam, "C0 03 5F D6");
+	__android_log_print(hexPatches.NoHurtCam.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoHurtCam.isValid()?"ok":"skip", "NoHurtCam", (unsigned long)Offsets64::NoHurtCam);
 	
 	hexPatches.NoCamDistortion = MemoryPatch::createWithHex(MineLib, Offsets64::NoCamDistortion, "C0 03 5F D6");
+	__android_log_print(hexPatches.NoCamDistortion.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoCamDistortion.isValid()?"ok":"skip", "NoCamDistortion", (unsigned long)Offsets64::NoCamDistortion);
 	
 	hexPatches.NoBoatRotation = MemoryPatch::createWithHex(MineLib, Offsets64::NoBoatRotation, "C0 03 5F D6");
+	__android_log_print(hexPatches.NoBoatRotation.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoBoatRotation.isValid()?"ok":"skip", "NoBoatRotation", (unsigned long)Offsets64::NoBoatRotation);
 	
 	hexPatches.NoCamSleep = MemoryPatch::createWithHex(MineLib, Offsets64::NoCamSleep, "C0 03 5F D6");
+	__android_log_print(hexPatches.NoCamSleep.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoCamSleep.isValid()?"ok":"skip", "NoCamSleep", (unsigned long)Offsets64::NoCamSleep);
 	
 	hexPatches.PlaceCamera = MemoryPatch::createWithHex(MineLib, Offsets64::PlaceCamera, "C0 03 5F D6");
+	__android_log_print(hexPatches.PlaceCamera.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.PlaceCamera.isValid()?"ok":"skip", "PlaceCamera", (unsigned long)Offsets64::PlaceCamera);
 	
-	A64HookSafe(Offsets64::SpeedHack, (void *) SpeedHack, (void **) &old_SpeedHack);
+	A64HookSafe(Offsets64::SpeedHack,  (void *) SpeedHack, (void **) &old_SpeedHack, "SpeedHack");
 	
-	A64HookSafe(Offsets64::NormalTick, (void*) NormalTick, (void**) &old_NormalTick);
-	A64HookSafe(Offsets64::Intersects, (void*) Intersects, (void**) &old_Intersects);
-	A64HookSafe(Offsets64::PlayerAuthInput, (void *) PlayerAuthInputPacket, (void **) &old_PlayerAuthInputPacket);
+	A64HookSafe(Offsets64::NormalTick,  (void*) NormalTick, (void**) &old_NormalTick, "NormalTick");
+	A64HookSafe(Offsets64::Intersects,  (void*) Intersects, (void**) &old_Intersects, "Intersects");
+	A64HookSafe(Offsets64::PlayerAuthInput,  (void *) PlayerAuthInputPacket, (void **) &old_PlayerAuthInputPacket, "PlayerAuthInput");
 	
-	A64HookSafe(Offsets64::WaterTrigger1, (void *) WasInWater, (void **) &old_WasInWater);
-	A64HookSafe(Offsets64::WaterTrigger2, (void *) ActorHeadInWater, (void **) &old_ActorHeadInWater);
-	A64HookSafe(Offsets64::WaterTrigger3, (void *) WaterSplashEffect, (void **) &old_WaterSplashEffect);
+	A64HookSafe(Offsets64::WaterTrigger1,  (void *) WasInWater, (void **) &old_WasInWater, "WaterTrigger1");
+	A64HookSafe(Offsets64::WaterTrigger2,  (void *) ActorHeadInWater, (void **) &old_ActorHeadInWater, "WaterTrigger2");
+	A64HookSafe(Offsets64::WaterTrigger3,  (void *) WaterSplashEffect, (void **) &old_WaterSplashEffect, "WaterTrigger3");
 	
 	hexPatches.SlowDownTriggers = MemoryPatch::createWithHex(MineLib, Offsets64::SlowDownTriggers, "C0 03 5F D6");
+	__android_log_print(hexPatches.SlowDownTriggers.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.SlowDownTriggers.isValid()?"ok":"skip", "SlowDownTriggers", (unsigned long)Offsets64::SlowDownTriggers);
 	
-	A64HookSafe(Offsets64::JumpHack, (void *) JumpHack, (void **) &old_JumpHack);
+	A64HookSafe(Offsets64::JumpHack,  (void *) JumpHack, (void **) &old_JumpHack, "JumpHack");
 	
-	A64HookSafe(Offsets64::WaterSpeed, (void *) WaterSpeed, (void **) &old_WaterSpeed);
+	A64HookSafe(Offsets64::WaterSpeed,  (void *) WaterSpeed, (void **) &old_WaterSpeed, "WaterSpeed");
 	
-	A64HookSafe(Offsets64::LavaSpeed, (void *) LavaSpeed, (void **) &old_LavaSpeed);
+	A64HookSafe(Offsets64::LavaSpeed,  (void *) LavaSpeed, (void **) &old_LavaSpeed, "LavaSpeed");
 	
 	hexPatches.NoSlowDown = MemoryPatch::createWithHex(MineLib, Offsets64::NoSlowDown, "C0 03 5F D6");
+	__android_log_print(hexPatches.NoSlowDown.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoSlowDown.isValid()?"ok":"skip", "NoSlowDown", (unsigned long)Offsets64::NoSlowDown);
 	
-	hexPatches.WaterDrown = MemoryPatch::createWithHex(MineLib, Offsets64::WaterDrown, "C0 03 5F D6");
+	// WaterDrown and Gravity resolve to the SAME body in 1.26.66.1
+	// (MobMovementGravity::tickPlayerWaterGravity). Writing a `ret` here and then
+	// installing an inline hook over the same address one statement later would
+	// corrupt the trampoline (dobby patches the bytes it saved, which we already
+	// overwrote). Let the Gravity hook own that body; skip the duplicate patch.
+	if (Offsets64::WaterDrown != 0 && Offsets64::WaterDrown != Offsets64::Gravity) {
+	    hexPatches.WaterDrown = MemoryPatch::createWithHex(MineLib, Offsets64::WaterDrown, "C0 03 5F D6");
+	    __android_log_print(hexPatches.WaterDrown.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.WaterDrown.isValid()?"ok":"skip", "WaterDrown", (unsigned long)Offsets64::WaterDrown);
+	} else {
+	    __android_log_print(ANDROID_LOG_INFO, "ApollonOffset", "PATCH-skip WaterDrown @ 0x%lx (aliases Gravity)", (unsigned long)Offsets64::WaterDrown);
+	}
 	
 	hexPatches.LavaDrown = MemoryPatch::createWithHex(MineLib, Offsets64::LavaDrown, "C0 03 5F D6");
+	__android_log_print(hexPatches.LavaDrown.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.LavaDrown.isValid()?"ok":"skip", "LavaDrown", (unsigned long)Offsets64::LavaDrown);
 	
-	A64HookSafe(Offsets64::Gravity, (void *) Gravity, (void **) &old_Gravity);
+	A64HookSafe(Offsets64::Gravity,  (void *) Gravity, (void **) &old_Gravity, "Gravity");
 	
 	hexPatches.Noclip = MemoryPatch::createWithHex(MineLib, Offsets64::Noclip, "C0 03 5F D6");
+	__android_log_print(hexPatches.Noclip.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.Noclip.isValid()?"ok":"skip", "Noclip", (unsigned long)Offsets64::Noclip);
 	
 	hexPatches.AutoClickMine = MemoryPatch::createWithHex(MineLib, Offsets64::AutoClickMine, "C0 03 5F D6");
+	__android_log_print(hexPatches.AutoClickMine.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.AutoClickMine.isValid()?"ok":"skip", "AutoClickMine", (unsigned long)Offsets64::AutoClickMine);
 	
-	A64HookSafe(Offsets64::FastBridge, (void *) GameMode_FastBridge, (void **) &old_GameMode_FastBridge);
+	A64HookSafe(Offsets64::FastBridge,  (void *) GameMode_FastBridge, (void **) &old_GameMode_FastBridge, "FastBridge");
 	
-	A64HookSafe(Offsets64::BlockReach, (void *) GameMode_BlockReach, (void **) &old_GameMode_BlockReach);
+	A64HookSafe(Offsets64::BlockReach,  (void *) GameMode_BlockReach, (void **) &old_GameMode_BlockReach, "BlockReach");
 	
 	hexPatches.XrayCameraThird = MemoryPatch::createWithHex(MineLib, Offsets64::XrayCameraThird, "C0 03 5F D6");
+	__android_log_print(hexPatches.XrayCameraThird.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.XrayCameraThird.isValid()?"ok":"skip", "XrayCameraThird", (unsigned long)Offsets64::XrayCameraThird);
 	
 	hexPatches.NoEmoteUseCooldown = MemoryPatch::createWithHex(MineLib, Offsets64::IsEmoting, "00 00 80 D2 C0 03 5F D6");
+	__android_log_print(hexPatches.NoEmoteUseCooldown.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoEmoteUseCooldown.isValid()?"ok":"skip", "IsEmoting", (unsigned long)Offsets64::IsEmoting);
 	
 	hexPatches.NoBlur1 = MemoryPatch::createWithHex(MineLib, Offsets64::NoBlur1, "C0 03 5F D6");
+	__android_log_print(hexPatches.NoBlur1.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoBlur1.isValid()?"ok":"skip", "NoBlur1", (unsigned long)Offsets64::NoBlur1);
 	hexPatches.NoBlur2 = MemoryPatch::createWithHex(MineLib, Offsets64::NoBlur2, "C0 03 5F D6");
+	__android_log_print(hexPatches.NoBlur2.isValid()?ANDROID_LOG_INFO:ANDROID_LOG_WARN, "ApollonOffset", "PATCH-%s %s @ 0x%lx", hexPatches.NoBlur2.isValid()?"ok":"skip", "NoBlur2", (unsigned long)Offsets64::NoBlur2);
 
 #elif defined(__ARM_ARCH_7A__)
 
@@ -1655,10 +1756,24 @@ void *hack_thread(void *) {
 //  This build is "Levi native mod only" by request: JNI_OnLoad is removed so
 //  the two paths cannot fight over cheatThread.
 // ---------------------------------------------------------------------------
+#include "modmenu.h"
+
 extern "C" __attribute__((visibility("default")))
 void ApollonNativeMod_Start() {
     if (cheatThread) return;                    // already running
     pthread_create(&cheatThread, NULL, hack_thread, NULL);
+
+    // Register the feature toggles with the launcher's Mod Menu. This is the
+    // ONLY user interface this build has: the old ImGui surface was pumped by
+    // Java_com_mojang_..._Platform2_step, which the game never calls when the
+    // mod is dlopen()ed by LeviLaunchroid, so no window ever appeared.
+    // Registration is independent of hook installation, so the menu exists even
+    // if every offset is still 0.
+    const int registered = ApollonRegisterModMenu();
+    __android_log_print(registered > 0 ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR,
+                        "ApollonMenu",
+                        "registered %d modules (0 = launcher menu API unreachable)",
+                        registered);
 }
 
 extern "C" __attribute__((visibility("default")))

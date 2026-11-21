@@ -28,6 +28,9 @@ INC_CXX="${LIBCXX_INCLUDE:-/tmp/libcxx-android}"      # libc++ headers + __confi
 # clang's builtin-include dir ships stddef.h/stdarg.h that libc++'s <stddef.h>
 # defers to via #include_next. Without it on the search path <cstddef> trips
 # libc++'s own guard. Derived from the zig installation so it never goes stale.
+# LeviLaunchroid preloader SDK (pl/ModMenu.hpp). The Mod Menu registry lives
+# here. Vendored in-repo, so no external fetch.
+LEVI_INC="${LEVI_SDK_INCLUDE:-$AP/source_code/source_code/preloader-android/include}"
 INC_RSRC="${LIBCXX_RESOURCE_INCLUDE:-$(/tmp/venv/bin/python -c 'import ziglang,os;print(os.path.join(os.path.dirname(ziglang.__file__),"lib","include"))' 2>/dev/null)}"
 STUBS="$WS/stublibs"                                   # empty .so stubs for DT_NEEDED
 DOBBY="$SRC/libraries/arm64-v8a/libdobby.a"
@@ -86,7 +89,7 @@ COMMON=(
   -DANDROID
 )
 [ -z "$INC_RSRC" ] || COMMON+=(-isystem "$INC_RSRC")
-CXXFLAGS=("${COMMON[@]}" -std=c++17 -fpermissive -w -I "$SRC" -I "$SRC/ImGui" -I "$SRC/ImGui/backends" -I "$SRC/Includes")
+CXXFLAGS=("${COMMON[@]}" -std=c++20 -fpermissive -w -I "$SRC" -I "$SRC/ImGui" -I "$SRC/ImGui/backends" -I "$SRC/Includes" -I "$LEVI_INC")
 
 # NOTE: object names must be PATH-UNIQUE. Apollon has both a class `KittyUtils`
 # (KittyMemory/KittyUtils.h) and a namespace `KittyUtils`
@@ -105,18 +108,36 @@ for f in \
   KittyMemory/KittyMemory.cpp KittyMemory/MemoryPatch.cpp KittyMemory/MemoryBackup.cpp KittyMemory/KittyUtils.cpp \
   KittyScanner/KittyMemory_new.cpp KittyScanner/KittyScanner.cpp KittyScanner/KittyUtils.cpp \
   Substrate/SubstrateDebug.cpp Substrate/SubstrateHook.cpp Substrate/SubstratePosixMemory.cpp \
-  Arm64/And64InlineHook.cpp ENCRYPT/oxorany.cpp main.cpp ; do
+  Arm64/And64InlineHook.cpp ENCRYPT/oxorany.cpp main.cpp modmenu.cpp ; do
   compile_cxx "$f"
 done
 compile_c Substrate/hde64.c
+
+echo "=== building libpreloader.so import stub ==="
+# The mod calls pl::modmenu to register its menu. Levi ships libpreloader.so in
+# the APK and loads it only AFTER dlopen()ing us, so unless we declare it as a
+# DT_NEEDED dependency, BIND_NOW aborts the load with
+#   dlopen failed: cannot locate symbol "_ZN2pl7modmenu14registerModuleE..."
+# To emit DT_NEEDED we must link against something named libpreloader.so, so we
+# generate a stub carrying that SONAME. It is a link-time artifact ONLY and is
+# never shipped in the .levipack -- the launcher's real library resolves the
+# symbols at runtime.
+#
+# The symbol list is taken from the referenced set, so if modmenu.cpp stops
+# calling into pl::modmenu the stub is skipped and the dependency disappears
+# instead of lingering as a phantom requirement.
+PRELOADER_STUB="$WS/stublibs/preloader"
+mkdir -p "$PRELOADER_STUB"
+ZIG="$ZIG" python3 "$AP/build/gen_preloader_stub.py_from_objs.py" \
+    "$OBJ" "$PRELOADER_STUB"
 
 echo "=== linking libapollon_imgu.so ==="
 $ZIG c++ -target aarch64-linux-android -shared -fPIC -O2 -nostdlib -nostdinc \
   -o "$OUT/libapollon_imgu.so" "$OBJ"/*.o "$DOBBY" "$CRT_A64" \
   -Wl,--gc-sections -Wl,--strip-all \
   -Wl,-soname,libapollon_imgu.so \
-  -L"$STUBS" -Wl,--no-as-needed \
-  -lGLESv2 -lEGL -llog -landroid -lz -ldl -lm -lc++_shared \
+  -L"$STUBS" -L"$PRELOADER_STUB" -Wl,--no-as-needed \
+  $([ -f "$PRELOADER_STUB/libpreloader.so" ] && echo -lpreloader) -lGLESv2 -lEGL -llog -landroid -lz -ldl -lm -lc++_shared \
   -Wl,-z,max-page-size=16384
 
 echo "=== done: $OUT/libapollon_imgu.so ==="
