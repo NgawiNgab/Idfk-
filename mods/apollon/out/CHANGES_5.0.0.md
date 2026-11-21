@@ -1,4 +1,4 @@
-# Apollon Reborn 5.0.0 — what changed and why
+# Apollon Reborn 5.0.1 — what changed and why
 
 Target: **Minecraft Bedrock 1.26.66.1**, arm64-v8a, LeviLauncher native mod.
 
@@ -144,15 +144,69 @@ The remaining modules (Combat, ESP, Xray, Players, Hotkeys) depend on
 source in this build**. They still need the runtime vtable pass. The new
 Status page says so in-game rather than silently doing nothing.
 
+
+---
+
+## 6. compiler-rt: `_aarch64_cas4_acq_rel` (5.0.1)
+
+After the ABI and object-collision fixes the mod still failed to load:
+
+```
+dlopen failed: cannot locate symbol "__aarch64_cas4_acq_rel"
+```
+
+That is an **out-of-line atomic** emitted by clang when it decides an
+`std::atomic` CAS/RMW is better out-of-line than inline. The functions live in
+**compiler-rt**, which is normally linked automatically — but this build uses
+`-nostdlib`, so nothing pulled it in.
+
+Four were missing, from two objects:
+
+| object | symbol |
+|---|---|
+| `Arm64_And64InlineHook.o` | `__aarch64_cas4_acq_rel` |
+| `Arm64_And64InlineHook.o` | `__aarch64_ldadd4_acq_rel` |
+| `main.o` | `__aarch64_ldadd8_acq_rel` |
+| `main.o` | `__aarch64_ldadd8_relax` |
+
+Fix: build compiler-rt for the target once and link the archive.
+
+```sh
+zig build-lib -target aarch64-linux-android -O ReleaseFast -fcompiler-rt \
+    --name crt_a64 -femit-bin=/tmp/crt/libcrt_a64.a
+```
+
+The build script now requires `$CRT_A64` and links it next to libdobby.a.
+
+Verified in an **unstripped** test link (the shipping binary is `--strip-all`,
+which hides definitions):
+
+```
+__aarch64_cas4_acq_rel    -> 0x1b8500   DEFINED
+__aarch64_ldadd4_acq_rel  -> 0x1b84d0   DEFINED
+__aarch64_ldadd8_acq_rel  -> 0x1b8470   DEFINED
+__aarch64_ldadd8_relax    -> 0x1b84a0   DEFINED
+```
+
+Undefined atomic symbols in the shipping binary: **0**.
+
+### Cumulative symbol health
+
+| check | 4.62-opt (original) | 5.0.0 | 5.0.1 |
+|---|---|---|---|
+| `St3__1` undefined | 65 | 0 | 0 |
+| `KittyUtils` undefined | 2 | 0 | 0 |
+| `__aarch64_*` undefined | 4 | 4 | **0** |
+
 ---
 
 ## Artifacts
 
 | file | md5 |
 |---|---|
-| `libapollon_imgu.so` | `67613d168e17c366a2cc669da42cade0` |
-| `Apollon_ImGui.levipack` | `2b12953f6bae982bdce32d2da7f745ab` |
-| `Apollon_ImGui.apk` | `6620804220983fa34df14bcb44b9fb08` |
+| `libapollon_imgu.so` | `2460a792102df704b5ac049507a802e3` |
+| `Apollon_ImGui.levipack` | `73d43cdf02f9777110494e96528e062b` |
+| `Apollon_ImGui.apk` | `71d91db27cab1fbb1e572eaa99424d26` |
 | `manifest.json` | `14595f3541e44e386975a5f93507fb0f` |
 
 ELF checks: `EM_AARCH64`, `PT_LOAD p_align 0x4000` (16 KB pages),

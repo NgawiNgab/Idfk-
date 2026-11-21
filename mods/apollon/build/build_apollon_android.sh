@@ -27,11 +27,25 @@ ZIG="${ZIG:-/tmp/venv/bin/python -m ziglang}"
 INC_CXX="${LIBCXX_INCLUDE:-/tmp/libcxx-android}"      # libc++ headers + __config_site
 STUBS="$WS/stublibs"                                   # empty .so stubs for DT_NEEDED
 DOBBY="$SRC/libraries/arm64-v8a/libdobby.a"
+# compiler-rt: we link -nostdlib, so clang's out-of-line atomics
+# (__aarch64_cas4_acq_rel, __aarch64_ldadd{4,8}_*, ...) are NOT pulled in
+# automatically. Without this archive every std::atomic CAS/RMW produces an
+# undefined symbol and dlopen fails. Built once from zig's bundled compiler-rt:
+#   zig build-lib -target aarch64-linux-android -O ReleaseFast \\
+#       -fcompiler-rt --name crt_a64 -femit-bin=$CRT_A64
+CRT_A64="${COMPILER_RT_AARCH64:-/tmp/crt/libcrt_a64.a}"
 
 [ "$(id -u)" != 0 ] || true
 [ -d "$SYSROOT/usr/include" ] || { echo "!! missing bionic sysroot at $SYSROOT"; exit 1; }
 [ -d "$INC_CXX" ]            || { echo "!! missing libc++ include at $INC_CXX"; exit 1; }
 [ -f "$DOBBY" ]              || { echo "!! missing $DOBBY"; exit 1; }
+if [ ! -f "$CRT_A64" ]; then
+  echo "!! missing compiler-rt archive at $CRT_A64"
+  echo "   build it with:"
+  echo "   $ZIG build-lib -target aarch64-linux-android -O ReleaseFast -fcompiler-rt \\"
+  echo "        --name crt_a64 -femit-bin=$CRT_A64"
+  exit 1
+fi
 
 if [ "${1:-}" = "clean" ]; then rm -rf "$OBJ" "$OUT"; fi
 mkdir -p "$OBJ" "$OUT"
@@ -40,7 +54,7 @@ mkdir -p "$OBJ" "$OUT"
 CXX_DEFS=(
   -D_LIBCPP_HARDENING_MODE_DEFAULT=_LIBCPP_HARDENING_MODE_NONE
   -D_LIBCPP_ASSERTION_SEMANTIC_DEFAULT=_LIBCPP_ASSERTION_SEMANTIC_IGNORE
-  -D_LIBCPP_ABI_NAMESPACE=__1 -D_LIBCPP_ABI_NAMESPACE_LEN=3 -D_LIBCPP_ABI_VERSION=1
+  -D_LIBCPP_ABI_NAMESPACE=__ndk1 -D_LIBCPP_ABI_NAMESPACE_LEN=6 -D_LIBCPP_ABI_VERSION=1
   -D_LIBCPP_HAS_THREADS=1 -D_LIBCPP_HAS_MONOTONIC_CLOCK=1 -D_LIBCPP_HAS_MUSL_LIBC=0
   -D_LIBCPP_HAS_THREAD_API_PTHREAD=1 -D_LIBCPP_HAS_FILESYSTEM=1
   -D_LIBCPP_HAS_RANDOM_DEVICE=1 -D_LIBCPP_HAS_LOCALIZATION=1 -D_LIBCPP_HAS_UNICODE=1
@@ -60,8 +74,15 @@ COMMON=(
 )
 CXXFLAGS=("${COMMON[@]}" -std=c++17 -fpermissive -w -I "$SRC" -I "$SRC/ImGui" -I "$SRC/ImGui/backends" -I "$SRC/Includes")
 
-compile_cxx() { echo "  CXX $1"; $ZIG c++ "${CXXFLAGS[@]}" -c "$SRC/$1" -o "$OBJ/$(basename "$1" .cpp).o"; }
-compile_c()   { echo "  CC  $1"; $ZIG cc "${COMMON[@]}" -w -I "$SRC" -I "$SRC/Substrate" -c "$SRC/$1" -o "$OBJ/$(basename "$1" .c).o"; }
+# NOTE: object names must be PATH-UNIQUE. Apollon has both a class `KittyUtils`
+# (KittyMemory/KittyUtils.h) and a namespace `KittyUtils`
+# (KittyScanner/KittyUtils.hpp). Naming both objects "KittyUtils.o" silently
+# overwrote the class definitions, leaving validateHexString/fromHex undefined
+# at dlopen time ("cannot locate symbol ...KittyUtils..."). Fixed by deriving
+# the object name from the full relative source path.
+objname() { local n="${1//\//_}"; echo "${n%.*}"; }
+compile_cxx() { echo "  CXX $1"; $ZIG c++ "${CXXFLAGS[@]}" -c "$SRC/$1" -o "$OBJ/$(objname "$1").o"; }
+compile_c()   { echo "  CC  $1"; $ZIG cc "${COMMON[@]}" -w -I "$SRC" -I "$SRC/Substrate" -c "$SRC/$1" -o "$OBJ/$(objname "$1").o"; }
 
 echo "=== compiling Apollon (aarch64-linux-android, API 28) ==="
 for f in \
@@ -77,7 +98,7 @@ compile_c Substrate/hde64.c
 
 echo "=== linking libapollon_imgu.so ==="
 $ZIG c++ -target aarch64-linux-android -shared -fPIC -O2 -nostdlib -nostdinc \
-  -o "$OUT/libapollon_imgu.so" "$OBJ"/*.o "$DOBBY" \
+  -o "$OUT/libapollon_imgu.so" "$OBJ"/*.o "$DOBBY" "$CRT_A64" \
   -Wl,--gc-sections -Wl,--strip-all \
   -Wl,-soname,libapollon_imgu.so \
   -L"$STUBS" -Wl,--no-as-needed \
