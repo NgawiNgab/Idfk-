@@ -1,0 +1,299 @@
+[
+ {
+  "task": "ScreenName_hud",
+  "kind": "string",
+  "hits": [
+   {
+    "string_at": "0x25440e8",
+    "string": "hud_screen",
+    "xref_at": "0x8a8265c",
+    "via": "ADRP+ADD",
+    "func": "0x8a82354"
+   },
+   {
+    "string_at": "0x25440e8",
+    "string": "hud_screen",
+    "xref_at": "0x9b69778",
+    "via": "ADRP+ADD",
+    "func": "0x9b69754"
+   },
+   {
+    "string_at": "0x25440e8",
+    "string": "hud_screen",
+    "xref_at": "0xb82849c",
+    "via": "ADRP+ADD",
+    "func": "0xb8282dc"
+   }
+  ],
+  "n_xrefs": 3,
+  "n_resolved": 3,
+  "confidence": "ambiguous"
+ },
+ {
+  "task": "ScreenName_chat",
+  "kind": "string",
+  "hits": [
+   {
+    "string_at": "0x26426d2",
+    "string": "chat_screen",
+    "xref_at": "0xba308f8",
+    "via": "ADRP+ADD",
+    "func": "0xba308c8"
+   },
+   {
+    "string_at": "0x26426d2",
+    "string": "chat_screen",
+    "xref_at": "0xba30bfc",
+    "via": "ADRP+ADD",
+    "func": "0xba30bc4"
+   }
+  ],
+  "n_xrefs": 2,
+  "n_resolved": 2,
+  "confidence": "ambiguous"
+ },
+ {
+  "task": "ManageWorldsScreen",
+  "kind": "string",
+  "hits": [
+   {
+    "string_at": "0x2c3e38d",
+    "string": "/hbui/index.html",
+    "xref_at": "0x9997cc0",
+    "via": "ADRP+ADD",
+    "func": "0x9997944"
+   },
+   {
+    "string_at": "0x2c3e38d",
+    "string": "/hbui/index.html",
+    "xref_at": "0x9f587a4",
+    "via": "ADRP+ADD",
+    "func": "0x9f5823c"
+   },
+   {
+    "string_at": "0x2c3e38d",
+    "string": "/hbui/index.html",
+    "xref_at": "0x9f5acd8",
+    "via": "ADRP+ADD",
+    "func": "0x9f5a75c"
+   },
+   {
+    "string_at": "0x2c3e38d",
+    "string": "/hbui/index.html",
+    "xref_at": "0x9f5db3c",
+    "via": "ADRP+ADD",
+    "func": "0x9f5da7c"
+   },
+   {
+    "string_at": "0x2c3e38d",
+    "string": "/hbui/index.html",
+    "xref_at": "0x9f66fac",
+    "via": "ADRP+ADD",
+    "func": "0x9f66eec"
+   },
+   {
+    "string_at": "0x2c3e38d",
+    "string": "/hbui/index.html",
+    "xref_at": "0x9f6f074",
+    "via": "ADRP+ADD",
+    "func": "0x9f6ef98"
+   },
+   {
+    "string_at": "0x2c3e38d",
+    "string": "/hbui/index.html",
+    "xref_at": "0x9f7af20",
+    "via": "ADRP+ADD",
+    "func": "0x9f7ae60"
+   }
+  ],
+  "n_xrefs": 7,
+  "n_resolved": 7,
+  "confidence": "ambiguous"
+ },
+ {
+  "task": "PlayUI_pop",
+  "kind": "string",
+  "hits": [
+   {
+    "string_at": "0x25e165a",
+    "string": "random.pop",
+    "xref_at": "0xb7cbb14",
+    "via": "ADRP+ADD",
+    "func": "0xb7c9a98"
+   }
+  ],
+  "n_xrefs": 1,
+  "n_resolved": 1,
+  "confidence": "high"
+ },
+ {
+  "task": "GetMaxPlayers",
+  "kind": "string",
+  "hits": [
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0x85ab980",
+    "via": "ADRP+ADD",
+    "func": "0x85ab404"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0x85b1f94",
+    "via": "ADRP+ADD",
+    "func": "0x85b1a28"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xa1852ec",
+    "via": "ADRP+ADD",
+    "func": "0xa184ea4"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xa185af4",
+    "via": "ADRP+ADD",
+    "func": "0xa184ea4"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xa208824",
+    "via": "ADRP+ADD",
+    "func": "0xa208594"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xb18b3b8",
+    "via": "ADRP+ADD",
+    "func": "0xb18afd0"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xb34b868",
+    "via": "ADRP+ADD",
+    "func": "0xb34b730"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xb359900",
+    "via": "ADRP+ADD",
+    "func": "0xb3597ec"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xb370f5c",
+    "via": "ADRP+ADD",
+    "func": "0xb37088c"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xb376d38",
+    "via": "ADRP+ADD",
+    "func": "0xb376bd4"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xcc23edc",
+    "via": "ADRP+ADD",
+    "func": "0xcc22950"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0xf37fc58",
+    "via": "ADRP+ADD",
+    "func": "0xf37f43c"
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0x116a9484",
+    "via": "ADRP+ADD",
+    "func": null
+   },
+   {
+    "string_at": "0x24ffa2e",
+    "string": "maxPlayers",
+    "xref_at": "0x116aca9c",
+    "via": "ADRP+ADD",
+    "func": null
+   }
+  ],
+  "n_xrefs": 14,
+  "n_resolved": 12,
+  "confidence": "ambiguous"
+ },
+ {
+  "task": "IsEmoting",
+  "kind": "string",
+  "hits": [
+   {
+    "string_at": "0x24f0424",
+    "string": "isEmoting",
+    "xref_at": "0xf761ad4",
+    "via": "ADRP+ADD",
+    "func": "0xf75f37c"
+   },
+   {
+    "string_at": "0x24f0424",
+    "string": "isEmoting",
+    "xref_at": "0xf771258",
+    "via": "ADRP+ADD",
+    "func": "0xf7703f4"
+   }
+  ],
+  "n_xrefs": 2,
+  "n_resolved": 2,
+  "confidence": "ambiguous"
+ },
+ {
+  "task": "Paperdoll",
+  "kind": "string",
+  "hits": [
+   {
+    "string_at": "0x2746537",
+    "string": "paperdoll",
+    "xref_at": "0xf3a4db0",
+    "via": "ADRP+ADD",
+    "func": "0xf3a4d48"
+   }
+  ],
+  "n_xrefs": 1,
+  "n_resolved": 1,
+  "confidence": "high"
+ },
+ {
+  "task": "Gamma",
+  "kind": "string",
+  "hits": [],
+  "n_xrefs": 0,
+  "n_resolved": 0,
+  "confidence": "none"
+ },
+ {
+  "task": "Gravity_-0.08",
+  "kind": "f32",
+  "hits": [],
+  "n_xrefs": 0,
+  "n_resolved": 0,
+  "confidence": "none"
+ },
+ {
+  "task": "Jump_0.42",
+  "kind": "f32",
+  "hits": [],
+  "n_xrefs": 0,
+  "n_resolved": 0,
+  "confidence": "none"
+ }
+]

@@ -1,0 +1,388 @@
+[
+ {
+  "offset": "NoHurtCam",
+  "candidates": [
+   "CameraBobSystem::tick"
+  ],
+  "method": "CameraBobSystem::tick",
+  "fns": [
+   145206420,
+   145105324,
+   323402104,
+   145105328,
+   145105412,
+   145105520,
+   145105604,
+   145106188,
+   145122856,
+   145122872,
+   145122920,
+   145122932,
+   145122936,
+   145122964,
+   145123092,
+   145123192,
+   145123308
+  ],
+  "note": ""
+ },
+ {
+  "offset": "NoCamDistortion",
+  "candidates": [
+   "CameraPortalDistortionSystem::_tick"
+  ],
+  "method": "CameraPortalDistortionSystem::_tick",
+  "fns": [
+   145206420,
+   300270672,
+   323402104,
+   300270676,
+   300270760,
+   300270868,
+   300270952,
+   300272692,
+   145206420,
+   300274740,
+   323402104,
+   300274744,
+   300274828,
+   300274936,
+   300275020,
+   300275644
+  ],
+  "note": ""
+ },
+ {
+  "offset": "NoBoatRotation",
+  "candidates": [
+   "CameraVehicleRotationLookSystem::tick"
+  ],
+  "method": "CameraVehicleRotationLookSystem::tick",
+  "fns": [
+   145182008,
+   145206420,
+   145182524,
+   323402104,
+   145182528,
+   145182612,
+   145182720,
+   145182804,
+   145183644,
+   145206420,
+   145187916,
+   323402104,
+   145187920,
+   145188004,
+   145188112,
+   145188196,
+   145189268
+  ],
+  "note": ""
+ },
+ {
+  "offset": "NoCamSleep",
+  "candidates": [
+   "CameraSleepFadeSystem::_tickSleepFade"
+  ],
+  "method": null,
+  "fns": [],
+  "note": "no named system in binary"
+ },
+ {
+  "offset": "PlaceCamera",
+  "candidates": [
+   "CameraBlendSystem::_tick"
+  ],
+  "method": "CameraBlendSystem::_tick",
+  "fns": [
+   145206420,
+   300661368,
+   323402104,
+   300661372,
+   300661456,
+   300661564,
+   300661648,
+   300662712,
+   300664636,
+   300664764,
+   300664876,
+   300664884,
+   300664892,
+   300664872,
+   300664900,
+   300664904,
+   300666344,
+   300666636,
+   300666672,
+   300666680,
+   300666688
+  ],
+  "note": ""
+ },
+ {
+  "offset": "SlowDownTriggers",
+  "candidates": [
+   "BlockMovementSlowdownMultiplierSystemImpl::applySlowdownOnMove"
+  ],
+  "method": "BlockMovementSlowdownMultiplierSystemImpl::applySlowdownOnMove",
+  "fns": [
+   145206420,
+   203785652,
+   323402104,
+   203785656,
+   203785740,
+   203785848,
+   203785932,
+   203787552,
+   145206420,
+   203788952,
+   323402104,
+   203788956,
+   203789040,
+   203789148,
+   203789232,
+   203789328
+  ],
+  "note": ""
+ },
+ {
+  "offset": "NoSlowDown",
+  "candidates": [
+   "ItemUseSlowdownSystemImpl::doItemUseSlowdownSystem"
+  ],
+  "method": "ItemUseSlowdownSystemImpl::doItemUseSlowdownSystem",
+  "fns": [
+   145206420,
+   202527576,
+   323402104,
+   202527580,
+   202527664,
+   202527772,
+   202527856,
+   202527928,
+   202529704,
+   202529720,
+   202529768,
+   202529780,
+   202529784,
+   202529812,
+   202529940,
+   202530040,
+   202530156
+  ],
+  "note": ""
+ },
+ {
+  "offset": "WaterSpeed",
+  "candidates": [
+   "doWaterMoveSystem"
+  ],
+  "method": "CandidateAdapterIXadL_ZL1::doWaterMoveSystemN4entt9type_listIJ7Inclu",
+  "fns": [
+   143504764,
+   145206420,
+   215751600,
+   323402104,
+   215751604,
+   215751688,
+   215751796,
+   215751880,
+   215753848,
+   145206420,
+   215756368,
+   323402104,
+   215756372,
+   215756456,
+   215756564,
+   215756648,
+   215760080
+  ],
+  "note": ""
+ },
+ {
+  "offset": "LavaSpeed",
+  "candidates": [
+   "doLavaMoveSystem"
+  ],
+  "method": "SingleViewSystemWithBlockSourceIXadL_ZL1::doLavaMoveSystemRK19StrictEntityContext8O",
+  "fns": [
+   145206420,
+   202585092,
+   323402104,
+   202585096,
+   202585180,
+   202585288,
+   202585372,
+   202591000,
+   145206420,
+   202592980,
+   323402104,
+   202592984,
+   202593068,
+   202593176,
+   202593260,
+   202594092
+  ],
+  "note": ""
+ },
+ {
+  "offset": "Noclip",
+  "candidates": [
+   "MoveCollisionSystem"
+  ],
+  "method": "MoveCollisionSystem::doComponentCopySystem",
+  "fns": [
+   145206420,
+   202440300,
+   323402104,
+   202440304,
+   202440388,
+   202440496,
+   202440580,
+   202442644,
+   202356756,
+   202356772,
+   202356820,
+   202356832,
+   143502416,
+   143502424,
+   143502428,
+   143502876,
+   143502992
+  ],
+  "note": ""
+ },
+ {
+  "offset": "XrayCameraThird",
+  "candidates": [
+   "CameraAvoidanceSystem::tick"
+  ],
+  "method": "CameraAvoidanceSystem::tick",
+  "fns": [
+   300638112,
+   145206420,
+   300640152,
+   323402104,
+   300640156,
+   300640240,
+   300640348,
+   300640432,
+   300640508,
+   145206420,
+   300646980,
+   323402104,
+   300646984,
+   300647068,
+   300647176,
+   300647260,
+   300656872
+  ],
+  "note": ""
+ },
+ {
+  "offset": "LavaDrown",
+  "candidates": [
+   "MobMovementGravity::tickLavaGravity"
+  ],
+  "method": "MobMovementGravity::tickLavaGravity",
+  "fns": [
+   145206420,
+   215270132,
+   323402104,
+   215270136,
+   215270220,
+   215270328,
+   215270412,
+   215270532,
+   145206420,
+   215272320,
+   323402104,
+   215272324,
+   215272408,
+   215272516,
+   215272600,
+   215272672
+  ],
+  "note": ""
+ },
+ {
+  "offset": "WaterDrown",
+  "candidates": [
+   "MobMovementGravity::tickPlayerWaterGravity"
+  ],
+  "method": "MobMovementGravity::tickPlayerWaterGravity",
+  "fns": [
+   145206420,
+   215261928,
+   323402104,
+   215261932,
+   215262016,
+   215262124,
+   215262208,
+   215262280,
+   145206420,
+   215270132,
+   323402104,
+   215270136,
+   215270220,
+   215270328,
+   215270412,
+   215270532
+  ],
+  "note": ""
+ },
+ {
+  "offset": "Gravity",
+  "candidates": [
+   "MobMovementGravity::tickGroundGravity"
+  ],
+  "method": "MobMovementGravity::tickGroundGravity",
+  "fns": [
+   145206420,
+   215236476,
+   323402104,
+   215236480,
+   215236564,
+   215236672,
+   215236756,
+   215236828,
+   215238776,
+   215238792,
+   215238840,
+   215238852,
+   215238856,
+   215238884,
+   215239028,
+   215239128,
+   215239244
+  ],
+  "note": ""
+ },
+ {
+  "offset": "JumpHack",
+  "candidates": [
+   "ApplyJumpModifierSystem::_tickApplyJumpModifierSystem"
+  ],
+  "method": "ApplyJumpModifierSystem::_tickApplyJumpModifierSystem",
+  "fns": [
+   143504764,
+   145206420,
+   204097688,
+   323402104,
+   204097692,
+   204097776,
+   204097884,
+   204097968,
+   204106160,
+   145206420,
+   204109380,
+   323402104,
+   204109384,
+   204109468,
+   204109576,
+   204109660,
+   204110532
+  ],
+  "note": ""
+ }
+]

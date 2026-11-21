@@ -1,0 +1,86 @@
+[
+ {
+  "hook": "Gravity",
+  "addr": 215098988,
+  "src": "lambda+entry",
+  "method": "MobMovementGravity::tickPlayerWaterGravity"
+ },
+ {
+  "hook": "WaterDrown",
+  "addr": 215098988,
+  "src": "lambda+entry",
+  "method": "MobMovementGravity::tickPlayerWaterGravity"
+ },
+ {
+  "hook": "LavaDrown",
+  "addr": 215098988,
+  "src": "lambda+entry",
+  "method": "MobMovementGravity::tickLavaGravity"
+ },
+ {
+  "hook": "NoHurtCam",
+  "addr": 145105024,
+  "src": "impl-slot+entry",
+  "method": "CameraBobSystem::tick"
+ },
+ {
+  "hook": "NoCamDistortion",
+  "addr": 300270548,
+  "src": "impl-slot+entry",
+  "method": "CameraPortalDistortionSystem::_tick"
+ },
+ {
+  "hook": "NoBoatRotation",
+  "addr": 145181668,
+  "src": "impl-slot+entry",
+  "method": "CameraVehicleRotationLookSystem::tick"
+ },
+ {
+  "hook": "PlaceCamera",
+  "addr": 300661116,
+  "src": "impl-slot+entry",
+  "method": "CameraBlendSystem::_tick"
+ },
+ {
+  "hook": "XrayCameraThird",
+  "addr": 300637772,
+  "src": "impl-slot+entry",
+  "method": "CameraAvoidanceSystem::tick"
+ },
+ {
+  "hook": "SlowDownTriggers",
+  "addr": 203785344,
+  "src": "impl-slot+entry",
+  "method": "BlockMovementSlowdownMultiplierSystemImpl::applySlowdownOnMove"
+ },
+ {
+  "hook": "NoSlowDown",
+  "addr": 202527276,
+  "src": "impl-slot+entry",
+  "method": "ItemUseSlowdownSystemImpl::doItemUseSlowdownSystem"
+ },
+ {
+  "hook": "WaterSpeed",
+  "addr": 143504468,
+  "src": "impl-slot+entry",
+  "method": "CandidateAdapterIXadL_ZL1::doWaterMoveSystemN4entt9type_listIJ7Inclu"
+ },
+ {
+  "hook": "LavaSpeed",
+  "addr": 202584968,
+  "src": "impl-slot+entry",
+  "method": "SingleViewSystemWithBlockSourceIXadL_ZL1::doLavaMoveSystemRK19StrictEntityContext8O"
+ },
+ {
+  "hook": "Noclip",
+  "addr": 202440004,
+  "src": "impl-slot+entry",
+  "method": "MoveCollisionSystem::doComponentCopySystem"
+ },
+ {
+  "hook": "SpeedHack",
+  "addr": 203203592,
+  "src": "impl-slot+entry",
+  "method": "DefaultMoveSystems::doDefaultMoveSystems"
+ }
+]

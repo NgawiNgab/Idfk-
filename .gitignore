@@ -13,3 +13,4 @@ mods/apollon/source/Apollon_Client_ImGui/app/build/
 *.o
 *.so
 *.xz
+__pycache__/
