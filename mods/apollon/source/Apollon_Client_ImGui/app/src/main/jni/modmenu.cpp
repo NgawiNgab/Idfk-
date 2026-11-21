@@ -45,6 +45,8 @@ extern bool placeCam;
 extern bool offDrown;
 extern bool offSlowdownTrigger;
 
+extern bool speedModuleOn;
+
 extern int speedValue;
 extern int waterSpeedValue;
 extern int lavaSpeedValue;
@@ -243,9 +245,13 @@ struct Group {
 
 const Group kGroups[] = {
     // id                label                              hint                                                  flag               key              ival              ikey               lo hi   fval         fkey     flo    fhi   defOn
-    {"movement_speed",  "SpeedHack",       "Ground movement multiplier.",           nullptr,            nullptr,          &speedValue,      "speedValue",       1, 50,  nullptr,     nullptr, nullptr,nullptr, false},
-    {"movement_water",  "Water Speed",     "Horizontal speed while swimming.",      nullptr,            nullptr,          &waterSpeedValue, "waterSpeedValue",  1, 50,  nullptr,     nullptr, nullptr,nullptr, false},
-    {"movement_lava",   "Lava Speed",      "Horizontal speed while in lava.",       nullptr,            nullptr,          &lavaSpeedValue,  "lavaSpeedValue",   1, 50,  nullptr,     nullptr, nullptr,nullptr, false},
+    // These three need an explicit toggle: the hooks are installed at load and
+    // repeat the original system N times per tick, so without a gate the mod
+    // would act with the module switched off (which is exactly what happened).
+    // All three share speedModuleOn because they are the same mechanism.
+    {"movement_speed",  "SpeedHack",       "Ground movement multiplier. Enable, then raise the multiplier.", &speedModuleOn, "speedHackOn", &speedValue,      "speedValue",       2, 50,  nullptr,     nullptr, nullptr,nullptr, false},
+    {"movement_water",  "Water Speed",     "Swim speed multiplier. Enable, then raise the multiplier.",       &speedModuleOn, "waterSpeedOn",&waterSpeedValue, "waterSpeedValue",  2, 50,  nullptr,     nullptr, nullptr,nullptr, false},
+    {"movement_lava",   "Lava Speed",      "Lava speed multiplier. Enable, then raise the multiplier.",       &speedModuleOn, "lavaSpeedOn", &lavaSpeedValue,  "lavaSpeedValue",   2, 50,  nullptr,     nullptr, nullptr,nullptr, false},
     {"movement_gravity","Gravity",         "Added to vertical motion; negative is heavier.", nullptr,    nullptr,          nullptr,          nullptr,            0, 0,   &gravityValue,"gravityValue","-0.08","0.08", true},
     {"noslowdown",      "No SlowDown",     "Item use does not slow you down.",      &noSlowDown,        "noSlowDown",     nullptr,          nullptr,            0, 0,   nullptr,     nullptr, nullptr,nullptr, false},
     {"noweb",           "No Web / Slowdown Trigger","Ignore web and soul-sand slowdown.", &offSlowdownTrigger,"offSlowdownTrigger",nullptr, nullptr, 0, 0,   nullptr,     nullptr, nullptr,nullptr, false},
@@ -264,6 +270,12 @@ void onToggle(std::string_view moduleId, bool enabled) {
     for (int i = 0; i < kGroupCount; ++i) {
         if (moduleId != kGroups[i].id) continue;
         if (kGroups[i].flag) *kGroups[i].flag = enabled;
+        // SpeedHack/Water/Lava share the single speedModuleOn gate that the
+        // inline hooks consult, so the module toggle must drive it directly.
+        static const char *kSpeedIds[] = {"movement_speed", "movement_water",
+                                          "movement_lava"};
+        for (const char *sid : kSpeedIds)
+            if (moduleId == sid) { speedModuleOn = enabled; break; }
         logLine("%s -> %s", kGroups[i].id, enabled ? "ON" : "OFF");
         return;
     }
@@ -281,6 +293,14 @@ void onConfigChanged(std::string_view moduleId, std::string_view key,
     if (auto *f = findFloat(key)) {
         *f->value = parseFloat(value);
         logLine("%s = %.3f", f->key, (double)*f->value);
+        return;
+    }
+    // The three speed modules share one gate flag, but each has its own config
+    // key. Handle them before the generic table lookup.
+    if (key == "speedHackOn" || key == "waterSpeedOn" || key == "lavaSpeedOn") {
+        speedModuleOn = (value == "true" || value == "1");
+        logLine("%.*s -> speedModuleOn=%s", (int)key.size(), key.data(),
+                speedModuleOn ? "true" : "false");
         return;
     }
     if (auto *t = findToggle(key)) {

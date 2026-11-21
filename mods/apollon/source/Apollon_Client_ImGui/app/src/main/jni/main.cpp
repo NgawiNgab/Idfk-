@@ -208,8 +208,23 @@ Java_com_mojang_minecraftpe_platforms_Platform2_resize(JNIEnv* env, jobject obj,
 	return;
 }
 
+// TRUE only if an ImGui surface is actually being rendered. It is false here:
+// the ImGui frame was pumped by Java_..._Platform2_step, a JNI entry the game
+// never calls when LeviLaunchpad dlopen()s us, so nothing is ever drawn.
+//
+// Gating patches on "the menu is open" therefore meant "Restore() them forever":
+// inMenu is declared true in variables.h and is only cleared by
+// ClientInstance_onTick, which is offset 0 in the 1.26 table, so that hook never
+// installs and inMenu never changes. That silently disabled every feature in the
+// branch below: NoHurtCam, NoCamDistortion, NoBoatRotation, NoCamSleep,
+// PlaceCamera, SlowDownTriggers, XrayCameraThird.
+//
+// Keep this distinct from inMenu: inMenu describes the GAME's screen, this
+// describes whether WE have a UI.
+static constexpr bool kImGuiSurfaceActive = false;
+
 void Patches() {
-    if (inMenu) {
+    if (kImGuiSurfaceActive) {
         hexPatches.NoHurtCam.Restore();
         hexPatches.NoCamDistortion.Restore();
         hexPatches.NoBoatRotation.Restore();
@@ -1103,13 +1118,26 @@ void *LevelRendererPlayer_setupFog(void *a1, void *a2, void *a3) {
 }
 
 void (*old_SpeedHack)(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6, void *a7, void *a8, void *a9, void *a10, void *a11, void *a12, void *a13);
+// SpeedHack repeats the original doDefaultMoveSystems once per extra "speed"
+// unit; the trampoline keeps one real call at the end.
+//
+// It had NO check of the module toggle, so it acted with the module switched
+// off. It also ran `speedValue - 1` times with speedValue defaulting to 1, i.e.
+// zero times -- a pure pass-through -- yet movement still changed. That is
+// expected now that we hook a method BODY (record slot[6]) instead of the 1.21
+// build's dispatch THUNK: re-entering a body restarts its work mid-tick, which
+// is why the effect only showed up after a jump (the frame after a jump is where
+// the re-entry lands). A thunk re-ran the whole system cleanly.
+//
+// So: require the toggle AND a multiplier above 1, making the result
+// predictable instead of dependent on jump timing.
 void SpeedHack(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6, void *a7, void *a8, void *a9, void *a10, void *a11, void *a12, void *a13) {
-	if (panic) return old_SpeedHack(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13);
-	if (!isLANGame) {
-	    for (int i = 0; i < speedValue - 1; ++i) {
-		    old_SpeedHack(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13);
+    const bool enabled = speedModuleOn && !isLANGame && !panic && speedValue > 1;
+    if (enabled) {
+        for (int i = 0; i < speedValue - 1; ++i) {
+            old_SpeedHack(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13);
         }
-	}
+    }
     return old_SpeedHack(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13);
 }
 
@@ -1126,23 +1154,25 @@ float JumpHack(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6) {
 
 void (*old_WaterSpeed)(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6);
 void WaterSpeed(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6) {
-	if (panic) return old_WaterSpeed(a1, a2, a3, a4, a5, a6);
-	if (!isLANGame) {
-	    for (int i = 0; i < waterSpeedValue - 1; ++i) {
-		    old_WaterSpeed(a1, a2, a3, a4, a5, a6);
+    // Same bug as SpeedHack: no toggle check, so it acted with the module off.
+    const bool enabled = speedModuleOn && !isLANGame && !panic && waterSpeedValue > 1;
+    if (enabled) {
+        for (int i = 0; i < waterSpeedValue - 1; ++i) {
+            old_WaterSpeed(a1, a2, a3, a4, a5, a6);
         }
-	}
+    }
     return old_WaterSpeed(a1, a2, a3, a4, a5, a6);
 }
 
 void (*old_LavaSpeed)(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6);
 void LavaSpeed(void *a1, void *a2, void *a3, void *a4, void *a5, void *a6) {
-	if (panic) return old_LavaSpeed(a1, a2, a3, a4, a5, a6);
-	if (!isLANGame) {
-	    for (int i = 0; i < lavaSpeedValue - 1; ++i) {
-		    old_LavaSpeed(a1, a2, a3, a4, a5, a6);
+    // Same bug as SpeedHack: no toggle check, so it acted with the module off.
+    const bool enabled = speedModuleOn && !isLANGame && !panic && lavaSpeedValue > 1;
+    if (enabled) {
+        for (int i = 0; i < lavaSpeedValue - 1; ++i) {
+            old_LavaSpeed(a1, a2, a3, a4, a5, a6);
         }
-	}
+    }
     return old_LavaSpeed(a1, a2, a3, a4, a5, a6);
 }
 
