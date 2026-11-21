@@ -25,6 +25,10 @@ OUT="$WS/out"
 SYSROOT="${ANDROID_SYSROOT:-/tmp/sysroot}"
 ZIG="${ZIG:-/tmp/venv/bin/python -m ziglang}"
 INC_CXX="${LIBCXX_INCLUDE:-/tmp/libcxx-android}"      # libc++ headers + __config_site
+# clang's builtin-include dir ships stddef.h/stdarg.h that libc++'s <stddef.h>
+# defers to via #include_next. Without it on the search path <cstddef> trips
+# libc++'s own guard. Derived from the zig installation so it never goes stale.
+INC_RSRC="${LIBCXX_RESOURCE_INCLUDE:-$(/tmp/venv/bin/python -c 'import ziglang,os;print(os.path.join(os.path.dirname(ziglang.__file__),"lib","include"))' 2>/dev/null)}"
 STUBS="$WS/stublibs"                                   # empty .so stubs for DT_NEEDED
 DOBBY="$SRC/libraries/arm64-v8a/libdobby.a"
 # compiler-rt: we link -nostdlib, so clang's out-of-line atomics
@@ -64,14 +68,24 @@ CXX_DEFS=(
   -D_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS=0
   -D_LIBCPP_TYPEINFO_COMPARISON_IMPLEMENTATION=1
 )
+# Include search order, and why it is what it is:
+#   -I (searched first)  libc++          -> its <stddef.h> wins over clang's
+#   -I (searched first)  bionic arch     -> <asm/*.h>, <machine/*.h>
+#   -I (searched first)  bionic          -> <stdint.h>, <pthread.h>, jni.h
+#   -isystem (builtin-include comes first among isystem) -> clang's stddef.h
+# libc++'s <stddef.h> does `#include_next <stddef.h>`, which reaches clang's.
+# Put libc++ in -isystem instead and the builtin dir shadows it, so #include_next
+# finds nothing and libc++ errors out. Hence -I for libc++, and -nostdinc so the
+# ordering is entirely ours.
 COMMON=(
   -target aarch64-linux-android -O2 -fPIC -nostdinc -nostdlib
-  -isystem "$INC_CXX"
-  -isystem "$SYSROOT/usr/include"
-  -isystem "$SYSROOT/usr/include/aarch64-linux-android"
+  -I "$INC_CXX"
+  -I "$SYSROOT/usr/include/aarch64-linux-android"
+  -I "$SYSROOT/usr/include"
   "${CXX_DEFS[@]}"
-  -DANDROID -D__ANDROID_API__=28
+  -DANDROID
 )
+[ -z "$INC_RSRC" ] || COMMON+=(-isystem "$INC_RSRC")
 CXXFLAGS=("${COMMON[@]}" -std=c++17 -fpermissive -w -I "$SRC" -I "$SRC/ImGui" -I "$SRC/ImGui/backends" -I "$SRC/Includes")
 
 # NOTE: object names must be PATH-UNIQUE. Apollon has both a class `KittyUtils`

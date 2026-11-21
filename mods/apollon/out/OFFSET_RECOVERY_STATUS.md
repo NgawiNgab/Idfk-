@@ -203,3 +203,81 @@ site class the 1.21 table used. A `ret`-patch at a body entry and a `ret`-patch 
 dispatch thunk behave differently (the thunk still performs the canary check and the
 indirect call). Each of the 11 therefore needs a behavioural check on-device before it
 can be called verified.
+
+---
+
+## ROUND 4 — test build 5.1.0-test1 (first shippable body-layer build)
+
+**What shipped:** `out/Apollon_ImGui_5.1.0-test1.levipack`
+(md5 `cd8bd4257f3ed69d4b75efb9cae95172`, inner .so md5 `d0cd184d93de72719c1575841d64ecf2`).
+Drive id `1Niv05X5h7sklU4d0VGQueQQafzCSdQAt` in the builds folder.
+
+### Two generator defects found and fixed
+
+The first "11/77" table was produced by taking record slot[6] with **no body
+validation** and had two problems:
+
+1. **`PlaceCamera` pointed at a bare `ret`** (`0x11EBC844`, word `0xD65F03C0`).
+   `main.cpp` writes `"C0 03 5F D6"` (i.e. a `ret`) there, so the patch was a
+   no-op and the entry was useless. It sits in a run of empty functions.
+   `gen_offsets_body.py` now rejects addresses whose first instruction is `ret`,
+   a `b <veneer>` branch, or which contain fewer than 4 real instructions before
+   the first `ret`. `PlaceCamera` is now `0x11EBC7BC` (`stp` prologue, real body).
+
+2. **Slot selection was "first valid", not "highest valid".** A record exposes
+   the method at multiple slots: slot3/slot5 are the `+0x30`/`+0x38` dispatch
+   thunks and slot6 is the real body. A naive `setdefault` picks slot3, i.e. a
+   thunk, reproducing exactly the layer we were trying to avoid. Now the highest
+   valid slot index wins, which is slot6.
+
+Corrected addresses (4 moved):
+
+| hook | before | after |
+|---|---|---|
+| PlaceCamera | `0x11EBC844` (`ret`) | **`0x11EBC7BC`** |
+| LavaDrown | `0x0CD4CC98` | **`0x0CD4CCE0`** |
+| NoSlowDown | `0x0C127A8C` | **`0x0C12825C`** |
+| SlowDownTriggers | `0x0C2593B0` | **`0x0C259410`** |
+
+### A real collision that would have broken a hook
+
+`WaterDrown` and `Gravity` resolve to the **same body** `0x0CD4C40C`
+(`MobMovementGravity::tickPlayerWaterGravity`). `main.cpp` wrote a `ret` at
+`WaterDrown` and then installed the `Gravity` inline hook **over the same
+address** — dobby would have patched bytes we had already overwritten. The
+WaterDrown patch is now skipped when it aliases Gravity.
+
+### Verification performed (offline, before device test)
+
+| check | result |
+|---|---|
+| all 11 offsets inside `.text` of 1.26 | PASS |
+| all 11 first instruction decodes as a function prologue | 11/11 |
+| all 10 unique offsets encoded in the built `.so` | 10/10 |
+| `check_loadable.py` unresolvable symbols | 0 |
+| build errors | 0 |
+
+`check_loadable.py` was extended: NDK `AKeyEvent_*`/`AMotionEvent_*` and the
+libc++ exception classes (`std::logic_error` / `runtime_error` /
+`bad_array_new_length`, which libc++ deliberately declares **outside** the ABI
+namespace) are provided by `libandroid.so` / `libc++_shared.so` at runtime and
+were false positives.
+
+### Build-harness fixes needed to rebuild after a workspace reset
+
+* `-nostdinc++` is not enough: `<cstddef>` still resolved `<stddef.h>` to
+  clang's builtin copy, because clang classifies libc++'s stddef.h as C and
+  `-nostdinc++` does not apply. The header search is now fully explicit —
+  `-nostdinc` plus `-I` for libc++, the bionic arch dir and bionic, and
+  `-isystem` for zig's resource `include/` dir (which libc++'s `#include_next`
+  needs to reach). `-D__ANDROID_API__` was dropped (zig derives it).
+* Stub `.so` set under `build/stublibs/` rebuilt (GLESv2, EGL, log, android, z,
+  dl, m, c++\_shared) for DT_NEEDED.
+
+### What is still not proven
+
+These are **method bodies**, while the 1.21 table patched **dispatch thunks**.
+A `ret` at a body entry does not cancel work already done upstream, so a hook
+can resolve and still produce no visible behaviour change. The device test
+answers *whether each address is live engine code*; it does not by itself prove
+each feature works. 66 hooks remain at 0 and are inert by construction.

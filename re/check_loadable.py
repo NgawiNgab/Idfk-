@@ -73,7 +73,12 @@ def main():
     fmaxf fminf fmax fmin copysign copysignf nextafter nextafterf
     localeconv sscanf fscanf clock_gettime pthread_kill stderr stdout stdin
     """.split())
-    PLATFORM_PREFIX = ('__','egl','gl','android','ALooper','AInput','ANative','AAsset','_ZT')
+    # NDK platform prefixes: libandroid.so (always DT_NEEDED) exports the
+    # AInputQueue/AKeyEvent/AMotionEvent/ANativeWindow/AAsset/ALooper families.
+    PLATFORM_PREFIX = ('__','egl','gl','android','ALooper','AInput','ANative','AAsset',
+                       'AKeyEvent','AMotionEvent','AConfiguration','ASensor',
+                       'AStorageManager','APerformanceHint','AHardwareBuffer',
+                       'ANativeWindow','AImage','_ZT')
     sysres = set()
     for p in ('mods/apollon/build/stublibs/liblog.so',):
         pass  # stubs export nothing; platform syms are modelled by prefix
@@ -91,6 +96,18 @@ def main():
         # __ndk1 namespace; bionic provides __cxxabi. Resolved at runtime.
         if n.startswith('_ZNSt6__ndk1') or n.startswith('_ZNKSt6__ndk1'): continue
         if n.startswith('_ZSt') or n.startswith('_ZNSt9') or n.startswith('_ZN10__cxxabi'): continue
+        # libc++ deliberately declares std::logic_error / runtime_error /
+        # bad_array_new_length OUTSIDE the inline ABI namespace ("purposefully
+        # not using versioning namespace", see libc++ stdexcept) so the mangling
+        # stays _ZNSt11logic_error... These are defined in libc++_shared.so.
+        # _Unwind_* comes from the libunwind that libc++_shared links in.
+        if n.startswith('_ZNSt11logic_error') or n.startswith('_ZNSt13runtime_error'): continue
+        if n.startswith('_ZNSt20bad_array_new_length'): continue
+        if n.startswith('_ZNSt12length_error') or n.startswith('_ZNSt12out_of_range'): continue
+        if n.startswith('_ZNSt14overflow_error') or n.startswith('_ZNSt13underflow_error'): continue
+        if n.startswith('_ZNSt12domain_error') or n.startswith('_ZNSt16invalid_argument'): continue
+        if n.startswith('_ZNKSt13runtime_error') or n.startswith('_ZNKSt11logic_error'): continue
+        if n.startswith('_Unwind_'): continue
         if n.startswith(PLATFORM_PREFIX): continue
         missing.append(n)
     print(f"mod            : {mod}")

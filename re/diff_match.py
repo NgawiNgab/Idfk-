@@ -62,8 +62,20 @@ class Bin:
         self.lib.f.seek(self.toff)
         self.blob = self.lib.f.read(self.t1 - self.t0)
         self.n = len(self.blob)//4
-        self.words = struct.unpack_from('<%dI' % self.n, self.blob, 0)
         self._entry_cache = {}
+
+    def words_range(self, start_i, count=1<<20):
+        """Yield (index, tuple_of_words) in chunks to bound memory."""
+        end = self.n
+        i = start_i
+        while i < end:
+            c = min(count, end - i)
+            yield i, struct.unpack_from('<%dI'%c, self.blob, i*4)
+            i += c
+
+    def word(self, va):
+        i = (va - self.t0)//4
+        return struct.unpack_from('<I', self.blob, i*4)[0]
 
     def insn_bytes(self, va, count):
         start = va - self.t0
@@ -86,7 +98,7 @@ class Bin:
         cur = va
         res = va
         while cur - self.t0 >= 0 and (va - cur) < back*4:
-            x = self.words[(cur - self.t0)//4]
+            x = self.word(cur)
             # STP x29,x30,[sp,#-imm]!  (pre-index, 64-bit)
             # SUB sp, sp, #imm         (0xD10003FF | imm12<<10)
             if (x & 0xFFC07FFF) == 0xA9807BFD or (x & 0xFFC003FF) == 0xD10003FF:
@@ -109,21 +121,16 @@ class Bin:
     def entries(self, addends):
         """Plausible entry points: reloc addends in .text + prologue scan."""
         ents = set(a for a in addends if self.t0 <= a < self.t1)
-        # prologue filter: stp x29,x30,[sp,#-imm]!  == 0xA9Bxxxxx family
-        for i in range(self.n-1):
-            x = self.words[i]
-            # STP (pre-index, 64-bit): 1010100110 imm7 Rt2 Rn Rt
-            if (x & 0xFFC00000) != 0xA9800000: continue
-            if (x >> 22) & 1: continue              # not post-index
-            rt  = x & 0x1F
-            rn  = (x >> 5) & 0x1F
-            rt2 = (x >> 10) & 0x1F
-            if rt == 29 and rt2 == 30 and rn == 31:
-                ents.add(self.t0 + i*4)
-        # SUB sp, sp, #imm  -> frameless / large-frame prologue
-        for i in range(self.n):
-            if (self.words[i] & 0xFFC003FF) == 0xD10003FF:
-                ents.add(self.t0 + i*4)
+        for i0, words in self.words_range(0):
+            for k, x in enumerate(words):
+                i = i0 + k
+                # STP x29,x30,[sp,#-imm]!   (pre-index, 64-bit)
+                if (x & 0xFFC00000) == 0xA9800000 and not ((x >> 22) & 1):
+                    if (x & 0x1F) == 29 and ((x >> 10) & 0x1F) == 30 and ((x >> 5) & 0x1F) == 31:
+                        ents.add(self.t0 + i*4)
+                # SUB sp, sp, #imm
+                elif (x & 0xFFC003FF) == 0xD10003FF:
+                    ents.add(self.t0 + i*4)
         return ents
 
 if __name__ == '__main__':
