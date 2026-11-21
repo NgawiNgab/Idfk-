@@ -281,3 +281,66 @@ A `ret` at a body entry does not cancel work already done upstream, so a hook
 can resolve and still produce no visible behaviour change. The device test
 answers *whether each address is live engine code*; it does not by itself prove
 each feature works. 66 hooks remain at 0 and are inert by construction.
+
+---
+
+## ROUND 5 — 5.2.0-menu1: the GUI problem was real, and it was not ImGui
+
+**Symptom:** the 5.1.0-test1 build showed "No GUI detected". The user could not
+switch a feature on, therefore could not test the offsets at all.
+
+**Root cause (verified in source, not guessed):** the ImGui surface had exactly
+one frame pump —
+
+```
+Java_com_mojang_minecraftpe_platforms_Platform2_step()
+```
+
+a JNI symbol the **game** must call by name. LeviLaunchpad `dlopen()`s the mod
+and never runs `JNI_OnLoad`, so this entry point was never invoked,
+`g_Initialized` remained `false`, and `ImGui::Render()` never executed. ImGui
+itself is fine; it had no pump and no surface owner.
+
+**Decision (user):** drop ImGui, use the Levi Mod Menu registry.
+
+**Implementation:** `jni/modmenu.cpp`. 10 modules, each backed by a recovered
+offset, each writing the same global the ImGui checkbox wrote. The tick thread
+already polls those globals, so a menu toggle reaches the feature through the
+identical path — including `!panic` guards and `hexPatches.Modify()/Restore()`.
+
+Registration is **independent of hook installation**, which is the whole point:
+the menu exists and is usable even if every offset were still 0.
+
+**Linking subtlety worth recording.** Levi loads `libpreloader.so` *after*
+`dlopen()`ing the mod, and our mod is `BIND_NOW`. Without a `DT_NEEDED` entry the
+load aborts with
+
+```
+dlopen failed: cannot locate symbol "_ZN2pl7modmenu14registerModuleE..."
+```
+
+So we link against a stub with SONAME `libpreloader.so`, generated from the
+object files (`build/gen_preloader_stub.py_from_objs.py`). The stub is **never
+packaged** — verified 0 preloader entries in the `.levipack`. It is skipped
+entirely when no object references `pl::*`, so no phantom dependency lingers.
+This is the Ore ESP reference mod's technique, reimplemented without an NDK.
+
+**Build change:** `-std=c++20`, because `pl/ModMenu.hpp` uses `std::span`.
+Verified `main.cpp` compiles clean under both c++17 and c++20, so the switch
+carries no risk for the legacy ImGui code.
+
+**Verified before shipping**
+
+| check | result |
+|---|---|
+| `DT_NEEDED libpreloader.so` | present, SONAME correct |
+| undefined `pl::` symbols | exactly 1, the intended one |
+| 10 feature globals read by tick loop | 10/10 confirmed |
+| `check_loadable.py` unresolvable | 0 |
+| `.levipack` contents | manifest.json + libapollon_imgu.so only |
+
+**Offsets unchanged** from 5.1.0-test1 (11/77). Artifact
+`out/Apollon_ImGui_5.2.0-menu1.levipack`, md5 `5bc1acc1ff553c0f76c9bcfbd233691e`.
+
+**Still unproven:** whether each body-layer hook produces a visible behaviour
+change. That is what the device test now measures for the first time.
